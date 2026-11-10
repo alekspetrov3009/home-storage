@@ -142,21 +142,28 @@ def item_row_changed(
 
 
 def page_header(title: str, caption: str | None = None, page_key: str = "") -> None:
-    """Заголовок страницы; перед ним рисует полосу отмены удаления.
+    """Hero-шапка страницы: h1-display + muted-подпись под ней.
 
+    Перед шапкой рисует полосу отмены удаления.
     page_key — идентификатор страницы: полоса «Только что удалено» живёт
     только на той странице, где произошло удаление, и исчезает при навигации.
     """
     from app.ui.trash import render_undo_strip
 
     render_undo_strip(page_key)
-    st.markdown(f"<h1>{html_lib.escape(title)}</h1>", unsafe_allow_html=True)
+    head = f"<h1>{html_lib.escape(title)}</h1>"
     if caption:
-        st.caption(caption)
+        head += f'<div class="hero-caption">{html_lib.escape(caption)}</div>'
+    st.markdown(f'<div class="hero">{head}</div>', unsafe_allow_html=True)
 
 
-def section_title(text: str) -> None:
-    st.markdown(f'<div class="section-title">{html_lib.escape(text)}</div>', unsafe_allow_html=True)
+def section_title(text: str, kicker: str | None = None) -> None:
+    """Секционный заголовок: опциональный caps-оверлайн над заголовком 1.05rem."""
+    inner = ""
+    if kicker:
+        inner += f'<div class="section-overlay">{html_lib.escape(kicker)}</div>'
+    inner += f'<div class="section-title">{html_lib.escape(text)}</div>'
+    st.markdown(f'<div class="section-block">{inner}</div>', unsafe_allow_html=True)
 
 
 def badge_html(text: Any) -> str:
@@ -173,29 +180,47 @@ def place_badge(place: str) -> str:
     return f'<span class="badge-plain">📍 {html_lib.escape(place)}</span>' if place else ""
 
 
-def stat_grid_html(stats: list[tuple[str, Any, str]]) -> str:
-    cards = "".join(
-        '<div class="stat-card">'
-        f'<div class="stat-icon">{icon}</div>'
-        f"<div><div class=\"stat-num\">{html_lib.escape(str(value))}</div>"
-        f'<div class="stat-label">{html_lib.escape(label)}</div></div></div>'
+def stat_bento_html(hero: tuple[str, Any, str], stats: list[tuple[str, Any, str]]) -> str:
+    """Bento-сетка статистики: главная плитка + компактные плитки.
+
+    ``hero`` — (иконка, значение, подпись) главной плитки («единиц»),
+    ``stats`` — тройки для компактных плиток справа. Раскладка — CSS
+    grid-areas: hero слева на две строки, компактные — сеткой 2+1.
+    """
+    icon, value, label = hero
+    hero_tile = (
+        '<div class="bento-tile bento-hero">'
+        f'<div class="icon-chip">{icon}</div>'
+        "<div>"
+        f'<div class="hero-num">{html_lib.escape(str(value))}</div>'
+        f'<div class="hero-label">{html_lib.escape(label)}</div>'
+        "</div></div>"
+    )
+    tiles = "".join(
+        '<div class="bento-tile">'
+        f'<div class="icon-chip">{icon}</div>'
+        "<div>"
+        f'<div class="bento-num">{html_lib.escape(str(value))}</div>'
+        f'<div class="bento-label">{html_lib.escape(label)}</div>'
+        "</div></div>"
         for icon, value, label in stats
     )
-    return f'<div class="stat-grid">{cards}</div>'
+    return f'<div class="bento">{hero_tile}{tiles}</div>'
 
 
 def empty_state(icon: str, title: str, hint: str, cta_label: str | None = None,
                 cta_key: str | None = None, cta_page: "st.Page | None" = None) -> None:
-    """Дружелюбное пустое состояние: иконка, подсказка и (опционально) CTA."""
-    st.markdown(
-        f'<div class="empty-state"><div class="empty-icon">{icon}</div>'
-        f'<div class="empty-title">{html_lib.escape(title)}</div>'
-        f'<div class="empty-hint">{html_lib.escape(hint)}</div></div>',
-        unsafe_allow_html=True,
-    )
-    if cta_label and cta_page is not None:
-        if st.button(cta_label, type="primary", use_container_width=True, key=cta_key):
-            st.switch_page(cta_page)
+    """Пустое состояние v2: карточка с «дышащей» иконкой и primary-CTA."""
+    with st.container(border=True, key="empty_state"):
+        st.markdown(
+            f'<div class="empty-state"><div class="empty-icon">{icon}</div>'
+            f'<div class="empty-title">{html_lib.escape(title)}</div>'
+            f'<div class="empty-hint">{html_lib.escape(hint)}</div></div>',
+            unsafe_allow_html=True,
+        )
+        if cta_label and cta_page is not None:
+            if st.button(cta_label, type="primary", use_container_width=True, key=cta_key):
+                st.switch_page(cta_page)
 
 
 def show_error(exc: Exception) -> None:

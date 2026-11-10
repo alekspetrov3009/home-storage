@@ -17,6 +17,7 @@ from app.ui.helpers import (
     location_label_map,
     page_header,
     place_badge,
+    qty_total,
 )
 from app.ui.item_cards import render_box_contents
 from app.ui.qr import qr_png
@@ -113,6 +114,7 @@ def page_box_view() -> None:
 
     # Единая карточка ящика: слева — информация, справа — QR-код (не выходит
     # за границы карточки, по вертикали центрирован относительно текста).
+    inside = items[items["Ящик_ID"].astype(str) == box_id]
     with st.container(border=True, key="box_info_card"):
         info_col, qr_col = st.columns([3, 1], vertical_alignment="center", gap="small")
         with info_col:
@@ -121,11 +123,17 @@ def page_box_view() -> None:
                 unsafe_allow_html=True,
             )
             place = loc_names.get(str(box_row["Место_ID"]), "")
-            badges = place_badge(place) or f'<div class="item-meta">{NO_LOCATION_LABEL}</div>'
-            st.markdown(badges or '<div class="item-meta">Место не указано</div>', unsafe_allow_html=True)
+            chips = place_badge(place) or f'<span class="badge-plain">{NO_LOCATION_LABEL}</span>'
+            st.markdown(f'<div class="item-chips">{chips}</div>', unsafe_allow_html=True)
             if box_row["Описание"]:
-                st.markdown(f'<div class="item-meta">ℹ️ {html_lib.escape(str(box_row["Описание"]))}</div>',
-                            unsafe_allow_html=True)
+                st.markdown(
+                    f'<div class="item-notes">ℹ️ {html_lib.escape(str(box_row["Описание"]))}</div>',
+                    unsafe_allow_html=True,
+                )
+            st.markdown(
+                f'<div class="item-meta">{len(inside)} поз. · {qty_total(inside)} ед.</div>',
+                unsafe_allow_html=True,
+            )
         with qr_col:
             _qr_block(qr_png(box_id), str(box_row["Название"]), box_id)
 

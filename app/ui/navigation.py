@@ -58,19 +58,24 @@ def run() -> None:
     nav = st.navigation(pages)
 
     with st.sidebar:
-        st.divider()
         theme_toggle(theme)
         st.markdown('<div class="side-section">Данные</div>', unsafe_allow_html=True)
+        # Tertiary-кнопки в один ряд: компактная секция без «лапши».
+        refresh_col, backup_col = st.columns(2, gap="small")
+        with refresh_col:
+            if st.button("🔄 Обновить", type="tertiary", use_container_width=True,
+                         key="refresh_button", help="Перечитать файл данных"):
+                clear_caches()
+                st.toast("Данные обновлены", icon="🔄")
+                st.rerun()
+        with backup_col:
+            if st.button("💾 Копия", type="tertiary", use_container_width=True,
+                         key="backup_button", help="Сохранить резервную копию файла"):
+                try:
+                    path = get_service().backup_file()
+                    st.toast(f"Копия создана: {os.path.basename(path)}", icon="💾")
+                except Exception as exc:  # noqa: BLE001
+                    show_error(exc)
         st.caption(f"Файл: `{get_config().data_file}`")
-        if st.button("🔄 Обновить данные", use_container_width=True, key="refresh_button"):
-            clear_caches()
-            st.toast("Данные обновлены", icon="🔄")
-            st.rerun()
-        if st.button("💾 Резервная копия", use_container_width=True, key="backup_button"):
-            try:
-                path = get_service().backup_file()
-                st.toast(f"Копия создана: {os.path.basename(path)}", icon="💾")
-            except Exception as exc:  # noqa: BLE001
-                show_error(exc)
 
     nav.run()

@@ -120,57 +120,67 @@ def resolved_category_or_warn(form_key: str, choice: str, options: list[str]) ->
 
 
 def box_create_form(form_key: str, locations: pd.DataFrame) -> None:
-    """Форма создания ящика (используется на страницах «Обзор», «Ящик», «Добавить»)."""
+    """Форма создания ящика (используется на страницах «Обзор», «Ящик», «Добавить»).
+
+    Форма живёт в карточке-контейнере с ключом ``form_card_*`` — стилизация
+    через CSS (см. styles.py), логика не зависит от обвязки.
+    """
     loc_labels = location_label_map(locations)
-    with st.form(form_key, clear_on_submit=True):
-        name = st.text_input("Название ящика *", placeholder="Ящик №1 / Коробка «Ёлка»")
-        place = st.selectbox(
-            "Место хранения",
-            options=[""] + list(loc_labels.keys()),
-            format_func=lambda x: loc_labels.get(x, "— не указано —"),
-        )
-        description = st.text_area("Описание", placeholder="Что примерно внутри", height=70)
-        if st.form_submit_button("Создать ящик", type="primary", use_container_width=True):
-            if not name.strip():
-                st.warning("Укажите название ящика.")
-            else:
-                try:
-                    get_service().create_box(name, place, description)
-                    clear_caches()
-                    place_name = loc_labels.get(place)
-                    suffix = f" на месте «{place_name}»" if place_name else ""
-                    st.toast(f"Ящик «{name.strip()}» создан{suffix}", icon="📦")
-                    st.rerun()
-                except Exception as exc:  # noqa: BLE001 — показываем пользователю
-                    show_error(exc)
+    with st.container(border=True, key=f"form_card_{form_key}"):
+        with st.form(form_key, clear_on_submit=True):
+            name = st.text_input("Название ящика *", placeholder="Ящик №1 / Коробка «Ёлка»")
+            place = st.selectbox(
+                "Место хранения",
+                options=[""] + list(loc_labels.keys()),
+                format_func=lambda x: loc_labels.get(x, "— не указано —"),
+            )
+            description = st.text_area("Описание", placeholder="Что примерно внутри", height=70)
+            if st.form_submit_button("Создать ящик", type="primary", use_container_width=True):
+                if not name.strip():
+                    st.warning("Укажите название ящика.")
+                else:
+                    try:
+                        get_service().create_box(name, place, description)
+                        clear_caches()
+                        place_name = loc_labels.get(place)
+                        suffix = f" на месте «{place_name}»" if place_name else ""
+                        st.toast(f"Ящик «{name.strip()}» создан{suffix}", icon="📦")
+                        st.rerun()
+                    except Exception as exc:  # noqa: BLE001 — показываем пользователю
+                        show_error(exc)
 
 
 def item_create_form(form_key: str, boxes: pd.DataFrame, labels: dict[str, str]) -> None:
-    """Форма добавления вещи (используется на страницах «Добавить» и «Вещи»)."""
+    """Форма добавления вещи (используется на страницах «Добавить» и «Вещи»).
+
+    Пикер категории и форма живут в общей карточке-контейнере
+    (``form_card_*``), но пикер — вне ``st.form``: внутри формы выбор
+    «➕ Новая категория…» не показал бы поле ввода до сабмита
+    (см. докстринг category_picker).
+    """
     options = get_service().get_categories()
-    # Пикер категории — вне формы: внутри st.form выбор «➕ Новая категория…»
-    # не показал бы поле ввода до сабмита (см. докстринг category_picker).
-    category_choice = category_picker(form_key, options=options)
-    with st.form(form_key, clear_on_submit=True):
-        name = st.text_input("Название вещи *", placeholder="Отвёртка крестовая")
-        box_id = st.selectbox(
-            "Ящик *",
-            options=list(labels.keys()),
-            format_func=lambda x: labels.get(x, x),
-        )
-        qty = st.number_input("Количество", min_value=1, step=1, value=1)
-        notes = st.text_area("Заметки", height=70)
-        if st.form_submit_button("Добавить вещь", type="primary", use_container_width=True):
-            if not name.strip():
-                st.warning("Укажите название вещи.")
-            else:
-                category = resolved_category_or_warn(form_key, category_choice, options)
-                if category is None:
-                    return
-                try:
-                    get_service().create_item(name, box_id, int(qty), category, notes)
-                    clear_caches()
-                    st.toast(f"«{name.strip()}» добавлена в «{labels[box_id]}»", icon="🗃")
-                    st.rerun()
-                except Exception as exc:  # noqa: BLE001
-                    show_error(exc)
+    with st.container(border=True, key=f"form_card_{form_key}"):
+        category_choice = category_picker(form_key, options=options)
+        with st.form(form_key, clear_on_submit=True):
+            name = st.text_input("Название вещи *", placeholder="Отвёртка крестовая")
+            box_id = st.selectbox(
+                "Ящик *",
+                options=list(labels.keys()),
+                format_func=lambda x: labels.get(x, x),
+            )
+            qty = st.number_input("Количество", min_value=1, step=1, value=1)
+            notes = st.text_area("Заметки", height=70)
+            if st.form_submit_button("Добавить вещь", type="primary", use_container_width=True):
+                if not name.strip():
+                    st.warning("Укажите название вещи.")
+                else:
+                    category = resolved_category_or_warn(form_key, category_choice, options)
+                    if category is None:
+                        return
+                    try:
+                        get_service().create_item(name, box_id, int(qty), category, notes)
+                        clear_caches()
+                        st.toast(f"«{name.strip()}» добавлена в «{labels[box_id]}»", icon="🗃")
+                        st.rerun()
+                    except Exception as exc:  # noqa: BLE001
+                        show_error(exc)

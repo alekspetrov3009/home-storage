@@ -42,25 +42,26 @@ def _delete_item(item_id: str, name: str) -> None:
 
 def item_card(item: pd.Series, labels: dict[str, str], key_prefix: str,
               allow_delete: bool = False) -> None:
-    """Карточка вещи: название, чип категории, ящик, заметки и степпер «−/+»."""
+    """Карточка вещи: название, чипы (категория + ящик), заметки и степпер «−/+»."""
     box_name = labels.get(str(item["Ящик_ID"]), NO_BOX_LABEL)
     qty = to_qty(item["Количество"])
     item_id = str(item["ID"])
     with st.container(border=True, key=f"itemcard_{key_prefix}"):
-        top, controls = st.columns([0.68, 0.32], vertical_alignment="center", wrap=True)
+        top, controls = st.columns([0.64, 0.36], vertical_alignment="center", wrap=True)
         with top:
             st.markdown(
                 f'<div class="item-name">{html_lib.escape(str(item["Название"]))}</div>',
                 unsafe_allow_html=True,
             )
-            meta = f'📦 {html_lib.escape(box_name)}'
+            chips = badge_html(item.get("Категория", ""))
+            chips += f'<span class="badge-plain">📦 {html_lib.escape(box_name)}</span>'
+            st.markdown(f'<div class="item-chips">{chips}</div>', unsafe_allow_html=True)
             notes = str(item.get("Заметки", "") or "").strip()
             if notes:
-                meta += f' &nbsp;·&nbsp; 📝 {html_lib.escape(notes)}'
-            st.markdown(
-                badge_html(item.get("Категория", "")) + f'<div class="item-meta">{meta}</div>',
-                unsafe_allow_html=True,
-            )
+                st.markdown(
+                    f'<div class="item-notes">📝 {html_lib.escape(notes)}</div>',
+                    unsafe_allow_html=True,
+                )
         with controls:
             if allow_delete:
                 c1, c2, c3, c4 = st.columns([1, 1.1, 1, 0.9], vertical_alignment="center",

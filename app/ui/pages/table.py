@@ -56,20 +56,21 @@ def page_table() -> None:
     with st.expander("➕ Добавить вещь"):
         item_create_form("form_table_add", boxes, labels)
 
-    # --- Фильтр -------------------------------------------------------------- #
-    st.caption(
-        "💡 Правьте значения прямо в ячейках. Чтобы удалить вещь, отметьте галочку "
-        "в крайней правой колонке «Удалить» и нажмите «Сохранить» — строки "
-        "переедут в корзину, откуда их можно вернуть на странице «Корзина». "
-        "Добавить строку можно внизу таблицы. При активном фильтре строки, "
-        "скрытые фильтром, остаются без изменений."
+    # --- Фильтр + счётчик найденного ----------------------------------------- #
+    st.markdown(
+        '<div class="chip-hint">💡 Правьте ячейки и нажмите «Сохранить». Галочка '
+        "в колонке «Удалить» отправляет строку в корзину; новые строки — внизу "
+        "таблицы. При активном фильтре скрытые строки остаются без изменений.</div>",
+        unsafe_allow_html=True,
     )
-    filter_q = st.text_input(
-        "Фильтр по названию, категории, заметкам или ящику",
-        placeholder="Например: инструменты",
-        label_visibility="collapsed",
-        key="table_filter",
-    ).strip().lower()
+    filter_col, count_col = st.columns([0.78, 0.22], vertical_alignment="center")
+    with filter_col:
+        filter_q = st.text_input(
+            "Фильтр по названию, категории, заметкам или ящику",
+            placeholder="Например: инструменты",
+            label_visibility="collapsed",
+            key="table_filter",
+        ).strip().lower()
 
     editable = items.copy()
     if filter_q:
@@ -80,6 +81,9 @@ def page_table() -> None:
             + " " + editable["Ящик_ID"].map(labels).fillna("").astype(str).str.lower()
         )
         editable = editable[haystack.str.contains(filter_q, regex=False)]
+
+    with count_col:
+        st.markdown(f'<div class="chip-count">{len(editable)} найдено</div>', unsafe_allow_html=True)
 
     if editable.empty:
         empty_state("🔍", "Ничего не найдено", "Попробуйте изменить фильтр.")
@@ -120,7 +124,12 @@ def page_table() -> None:
         },
     )
 
-    if st.button("💾 Сохранить", type="primary", use_container_width=True, key="table_save_button"):
+    with st.container(border=True, key="table_save_panel"):
+        save_clicked = st.button(
+            "💾 Сохранить", type="primary", use_container_width=True, key="table_save_button"
+        )
+
+    if save_clicked:
         try:
             label_to_id = {label: box_id for box_id, label in labels.items()}
             known_categories = get_service().get_categories()

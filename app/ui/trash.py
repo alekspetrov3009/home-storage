@@ -74,11 +74,11 @@ def render_undo_strip(page_key: str) -> None:
 
     label = _undo_label(state)
     with st.container(border=True, key="undo_strip"):
-        left, right = st.columns([0.82, 0.18], vertical_alignment="center")
+        left, right = st.columns([0.84, 0.16], vertical_alignment="center")
         with left:
             st.markdown(
                 '<div class="item-meta">🗑 Только что удалено: '
-                f"{html_lib.escape(label)}. Запись можно вернуть.</div>",
+                f"{html_lib.escape(label)} — можно вернуть.</div>",
                 unsafe_allow_html=True,
             )
         with right:

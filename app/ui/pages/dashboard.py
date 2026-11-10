@@ -16,7 +16,7 @@ from app.ui.helpers import (
     place_badge,
     qty_total,
     section_title,
-    stat_grid_html,
+    stat_bento_html,
 )
 from app.ui.item_cards import render_item_list
 from app.ui.trash import NO_LOCATION_LABEL
@@ -43,12 +43,22 @@ def page_dashboard() -> None:
     page_header("Обзор", caption, page_key="dashboard")
 
     total_units = qty_total(items)
-    st.markdown(stat_grid_html([
-        ("📦", len(boxes), "ящиков"),
-        ("🗃", len(items), "позиций"),
-        ("🔢", total_units, "единиц всего"),
-        ("🗺", len(locations), "мест хранения"),
-    ]), unsafe_allow_html=True)
+    st.markdown(stat_bento_html(
+        ("🔢", total_units, "единиц на складе"),
+        [
+            ("📦", len(boxes), "ящиков"),
+            ("🗃", len(items), "позиций"),
+            ("🗺", len(locations), "мест хранения"),
+        ],
+    ), unsafe_allow_html=True)
+    # Мини-CTA главной плитки bento: быстрый переход к добавлению вещи.
+    add_page = PAGES.get("add")
+    if add_page is not None:
+        cta_l, cta_c, cta_r = st.columns([1, 1.15, 1.85], vertical_alignment="center")
+        with cta_c:
+            if st.button("＋ Добавить вещь", type="primary", use_container_width=True,
+                         key="dash_hero_cta"):
+                st.switch_page(add_page)
 
     if boxes.empty and items.empty:
         empty_state(
@@ -62,7 +72,7 @@ def page_dashboard() -> None:
     loc_names = location_label_map(locations)
 
     # --- Быстрый поиск ------------------------------------------------------ #
-    section_title("Быстрый поиск")
+    section_title("Быстрый поиск", kicker="навигация")
     query = st.text_input(
         "Что ищем?",
         placeholder="Например: отвёртка, гирлянда, паспорт…",
@@ -78,13 +88,14 @@ def page_dashboard() -> None:
 
     # --- Ящики -------------------------------------------------------------- #
     if not boxes.empty:
-        section_title("Ящики")
+        section_title("Ящики", kicker="хранение")
         for _, box in boxes.sort_values("Название").iterrows():
             box_id = str(box["ID"])
             inside = items[items["Ящик_ID"].astype(str) == box_id]
             units = qty_total(inside)
             with st.container(border=True, key=f"boxcard_{box_id}"):
-                left, right = st.columns([0.72, 0.28], vertical_alignment="center", wrap=True)
+                left, mid, right = st.columns([0.56, 0.24, 0.2],
+                                              vertical_alignment="center", wrap=True)
                 with left:
                     st.markdown(
                         f'<div class="item-name">📦 {html_lib.escape(str(box["Название"]))}</div>',
@@ -92,8 +103,12 @@ def page_dashboard() -> None:
                     )
                     place = loc_names.get(str(box["Место_ID"]), "")
                     place_html = place_badge(place) or f'<span class="badge-plain">{NO_LOCATION_LABEL}</span>'
+                    st.markdown(place_html, unsafe_allow_html=True)
+                with mid:
                     st.markdown(
-                        place_html + f'<div class="item-meta">{len(inside)} поз. · {units} ед.</div>',
+                        '<div class="box-count">'
+                        f'<span class="box-count-num">{units}</span>'
+                        f'<span class="box-count-label">ед. · {len(inside)} поз.</span></div>',
                         unsafe_allow_html=True,
                     )
                 with right:
@@ -103,7 +118,7 @@ def page_dashboard() -> None:
 
     # --- Недавно обновлённое ------------------------------------------------ #
     if not items.empty:
-        section_title("Недавно обновлённое")
+        section_title("Недавно обновлённое", kicker="последние изменения")
         recent = items.sort_values("Обновлён", ascending=False).head(5)
         render_item_list(recent["ID"].astype(str).tolist(), labels,
                          key_prefix="dash_recent", allow_delete=True)

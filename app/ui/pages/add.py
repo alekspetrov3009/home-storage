@@ -24,7 +24,6 @@ def page_add() -> None:
         mode = "Новый ящик"
 
     if mode == "Новый ящик":
-        st.markdown('<div class="section-title">Новый ящик</div>', unsafe_allow_html=True)
         box_create_form("form_add_box", locations)
     else:
         if boxes.empty:
@@ -37,5 +36,4 @@ def page_add() -> None:
                 st.session_state["add_mode"] = "Новый ящик"
                 st.rerun()
         else:
-            st.markdown('<div class="section-title">Новая вещь</div>', unsafe_allow_html=True)
             item_create_form("form_add_item", boxes, box_label_map(boxes, locations))

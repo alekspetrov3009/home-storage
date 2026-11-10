@@ -64,7 +64,7 @@ def page_edit() -> None:
     current_box = str(item["Ящик_ID"])
 
     # --- Количество -------------------------------------------------------- #
-    section_title("Количество")
+    section_title("Количество", kicker="шаг и точный ввод")
     with st.container(border=True, key="qty_card"):
         c_minus, c_value, c_plus = st.columns([1, 1, 1], wrap=True)
         with c_minus:
@@ -105,7 +105,7 @@ def page_edit() -> None:
                     show_error(exc)
 
     # --- Перенос в другой ящик --------------------------------------------- #
-    section_title("Перенести в другой ящик")
+    section_title("Перенести в другой ящик", kicker="перемещение")
     if boxes.empty:
         st.caption("Нет доступных ящиков.")
     else:
@@ -126,7 +126,7 @@ def page_edit() -> None:
                 show_error(exc)
 
     # --- Редактирование полей ---------------------------------------------- #
-    section_title("Название / категория / заметки")
+    section_title("Название / категория / заметки", kicker="поля вещи")
     with st.expander("Изменить поля вещи"):
         category_options_list = get_service().get_categories()
         # Пикер категории — вне формы: внутри st.form выбор «➕ Новая категория…»
@@ -162,7 +162,7 @@ def page_edit() -> None:
 
     # --- Удаление ящика ------------------------------------------------------ #
     if not boxes.empty:
-        section_title("Удалить ящик")
+        section_title("Удалить ящик", kicker="в корзину")
         with st.expander("🗑 Удалить ящик"):
             st.caption(
                 "Ящик переедет в корзину, откуда его можно вернуть. Вещи из ящика "

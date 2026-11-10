@@ -3,10 +3,10 @@
 # тонкая настройка поверх выполняется через CSS в app/ui/styles.py.
 [theme]
 base = "dark"
-primaryColor = "#7C8CFF"
-backgroundColor = "#0F1117"
-secondaryBackgroundColor = "#1B2130"
-textColor = "#E8EBF4"
+primaryColor = "#7D85EC"
+backgroundColor = "#0E0F13"
+secondaryBackgroundColor = "#1D1F26"
+textColor = "#EDEEF2"
 font = "sans serif"
 
 # Убираем «Deploy» и прочий служебный хром из шапки, но оставляем меню
