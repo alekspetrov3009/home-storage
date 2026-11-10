@@ -1,16 +1,42 @@
-.env
+# ---- Python / backend ----
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
 .venv/
 venv/
-.idea/
-.vscode/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
-# Локальные файлы данных и резервные копии
-*.xlsx
-*.xlsx.*.backup.xlsx
-*.tmp
-# Node / фронтенд
+.coverage.*
+htmlcov/
+
+# ---- Node / фронтенд ----
 node_modules/
 frontend/dist/
+.npm/
+
+# ---- Переменные окружения и секреты ----
+.env
+.env.*
+!.env.example
+
+# ---- Логи и временные файлы ----
+logs/
+*.log
+*.tmp
+
+# ---- Локальные данные и резервные копии ----
+*.xlsx
+*.xlsx.*.backup.xlsx
+
+# ---- Редакторы и ОС ----
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Kilo: локальное состояние AI-ассистента ----
+.kilo/agent-manager.json
