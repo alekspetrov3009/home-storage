@@ -116,3 +116,84 @@ def test_delete_box_returns_trash_entry_and_detaches_items(client, data_file):
     assert item["box_id"] == "box1" and item["box_label"] is None
     # Повторное удаление — 404.
     assert client.delete("/api/boxes/box1").status_code == 404
+
+
+def test_patch_box_name_and_description(client, data_file):
+    make_new_workbook(
+        data_file,
+        locations=[["loc1", "Гараж", "", ""]],
+        boxes=[["box1", "Ящик А", "loc1", "старое описание", ""]],
+    )
+    response = client.patch(
+        "/api/boxes/box1", json={"name": "Ящик Z", "description": "новое описание"}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name"] == "Ящик Z"
+    assert body["description"] == "новое описание"
+    assert body["location_id"] == "loc1" and body["location_name"] == "Гараж"
+    # Изменения видны и в списке (кэш сброшен).
+    assert client.get("/api/boxes").json()[0]["name"] == "Ящик Z"
+
+
+def test_patch_box_location_move_and_detach(client, data_file):
+    make_new_workbook(
+        data_file,
+        locations=[["loc1", "Гараж", "", ""], ["loc2", "Кладовка", "", ""]],
+        boxes=[["box1", "Ящик А", "loc1", "", ""]],
+    )
+    moved = client.patch("/api/boxes/box1", json={"location_id": "loc2"})
+    assert moved.status_code == 200
+    assert moved.json()["location_id"] == "loc2"
+    assert moved.json()["location_name"] == "Кладовка"
+
+    detached = client.patch("/api/boxes/box1", json={"location_id": ""})
+    assert detached.status_code == 200
+    body = detached.json()
+    assert body["location_id"] == "" and body["location_name"] is None
+
+
+def test_patch_box_unknown_location_404(client, data_file):
+    # Текст-контракт — как при создании ящика (add_box).
+    make_new_workbook(data_file, boxes=[["box1", "Ящик А", "", "", ""]])
+    response = client.patch("/api/boxes/box1", json={"location_id": "nope"})
+    assert response.status_code == 404
+    assert "Место хранения с ID nope не найдено" in response.json()["detail"]
+
+
+def test_patch_box_empty_name_400(client, data_file):
+    make_new_workbook(data_file, boxes=[["box1", "Ящик А", "", "", ""]])
+    response = client.patch("/api/boxes/box1", json={"name": "   "})
+    assert response.status_code == 400
+    assert "Укажите название" in response.json()["detail"]
+
+
+def test_patch_box_unknown_404(client, data_file):
+    make_new_workbook(data_file)
+    response = client.patch("/api/boxes/nope", json={"name": "Ящик"})
+    assert response.status_code == 404
+    assert "Ящик с ID nope не найден" in response.json()["detail"]
+
+
+def test_patch_box_extra_field_422(client, data_file):
+    make_new_workbook(data_file, boxes=[["box1", "Ящик А", "", "", ""]])
+    response = client.patch("/api/boxes/box1", json={"name": "Ящик Б", "item_count": 5})
+    assert response.status_code == 422
+
+
+def test_patch_box_keeps_items(client, data_file):
+    # Переименование и перенос не трогают содержимое; счётчики актуальны.
+    make_new_workbook(
+        data_file,
+        locations=[["loc1", "Гараж", "", ""], ["loc2", "Кладовка", "", ""]],
+        boxes=[["box1", "Ящик А", "loc1", "", ""]],
+        items=[["itm1", "Отвёртка", "box1", 3, "", "", ""]],
+    )
+    body = client.patch(
+        "/api/boxes/box1", json={"name": "Ящик Z", "location_id": "loc2"}
+    ).json()
+    assert body["item_count"] == 1 and body["unit_count"] == 3
+    assert body["items"][0]["id"] == "itm1"
+    # Подпись ящика в вещах обновилась вслед за переименованием/переносом.
+    item = client.get("/api/items").json()[0]
+    assert item["box_label"] == "Ящик Z · Кладовка"

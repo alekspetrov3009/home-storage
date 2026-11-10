@@ -63,11 +63,17 @@ class CachedRepository:
     def add_location(self, name: str, description: str) -> str:
         return self._repo.add_location(name, description)
 
+    def update_location(self, location_id: str, fields: dict[str, Any]) -> None:
+        self._repo.update_location(location_id, fields)
+
     def delete_location(self, location_id: str) -> DeletedEntry:
         return self._repo.delete_location(location_id)
 
     def add_box(self, name: str, location_id: str, description: str) -> str:
         return self._repo.add_box(name, location_id, description)
+
+    def update_box(self, box_id: str, fields: dict[str, Any]) -> None:
+        self._repo.update_box(box_id, fields)
 
     def delete_box(self, box_id: str) -> DeletedEntry:
         return self._repo.delete_box(box_id)

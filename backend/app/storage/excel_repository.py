@@ -334,6 +334,41 @@ class ExcelRepository:
             self._save_workbook(wb)
             return loc_id
 
+    def update_location(self, location_id: str, fields: dict[str, Any]) -> None:
+        """Точечно обновляет поля места хранения по его ID.
+
+        Переименование соблюдает инвариант создания: одноимённые (без
+        учёта регистра) места запрещены, кроме самого себя.
+        """
+        unknown = set(fields) - set(LOCATION_HEADERS)
+        if unknown:
+            raise StorageError(f"Неизвестные поля: {', '.join(sorted(unknown))}")
+
+        with self._lock:
+            wb = self._load_workbook()
+            ws, _ = ensure_worksheet(wb, SHEET_LOCATIONS, LOCATION_HEADERS)
+            row = schema.row_index(ws, location_id)
+            if row is None:
+                raise NotFoundError(f"Место хранения с ID {location_id} не найдено.")
+
+            if "Название" in fields:
+                new_name = str(fields["Название"]).strip()
+                for other in ws.iter_rows(min_row=2, values_only=True):
+                    if (
+                        other
+                        and other[0] is not None
+                        and str(other[0]) != str(location_id)
+                        and other[1] is not None
+                        and str(other[1]).strip().lower() == new_name.lower()
+                    ):
+                        raise ConflictError(
+                            f"Место хранения «{new_name}» уже существует."
+                        )
+
+            for column, value in fields.items():
+                ws.cell(row=row, column=LOCATION_HEADERS.index(column) + 1, value=value)
+            self._save_workbook(wb)
+
     def delete_location(self, location_id: str) -> DeletedEntry:
         """Убирает место хранения в корзину.
 
@@ -379,6 +414,26 @@ class ExcelRepository:
             ws.append([box_id, name.strip(), location_id, description.strip(), now_str()])
             self._save_workbook(wb)
             return box_id
+
+    def update_box(self, box_id: str, fields: dict[str, Any]) -> None:
+        """Точечно обновляет поля ящика по его ID.
+
+        `fields` — словарь вида {"Название": "…", "Место_ID": "…"}.
+        Существование места проверяет сервис; содержимое (вещи) не трогается.
+        """
+        unknown = set(fields) - set(BOX_HEADERS)
+        if unknown:
+            raise StorageError(f"Неизвестные поля: {', '.join(sorted(unknown))}")
+
+        with self._lock:
+            wb = self._load_workbook()
+            ws, _ = ensure_worksheet(wb, SHEET_BOXES, BOX_HEADERS)
+            row = schema.row_index(ws, box_id)
+            if row is None:
+                raise NotFoundError(f"Ящик с ID {box_id} не найден.")
+            for column, value in fields.items():
+                ws.cell(row=row, column=BOX_HEADERS.index(column) + 1, value=value)
+            self._save_workbook(wb)
 
     def delete_box(self, box_id: str) -> DeletedEntry:
         """Убирает ящик в корзину.

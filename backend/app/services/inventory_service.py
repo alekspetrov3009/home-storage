@@ -70,6 +70,17 @@ class InventoryService:
         location = Location(id=new_id(), name=name, description=description)
         return self._repo.add_location(location.name, location.description)
 
+    def update_location(self, location_id: str, fields: dict[str, Any]) -> None:
+        """Точечно обновляет поля места, валидируя название.
+
+        Инвариант дубликатов имени (без учёта регистра, кроме самого себя)
+        проверяется в репозитории — там же, где и при создании.
+        """
+        if "Название" in fields:
+            # Валидация через модель: непустое название.
+            Location(id=location_id, name=str(fields["Название"] or ""))
+        self._repo.update_location(location_id, fields)
+
     def delete_location(self, location_id: str) -> DeletedEntry:
         """Убирает место в корзину. Ящики остаются, отображаются как
         «без места хранения»; восстановление места возвращает привязку."""
@@ -83,6 +94,23 @@ class InventoryService:
         """Создаёт ящик, при необходимости проверяя существование места."""
         box = Box(id=new_id(), name=name, location_id=location_id, description=description)
         return self._repo.add_box(box.name, box.location_id, box.description)
+
+    def update_box(self, box_id: str, fields: dict[str, Any]) -> None:
+        """Точечно обновляет поля ящика, валидируя название и место.
+
+        Существование места проверяется здесь (текст — как в ``add_box``):
+        пустой ``Место_ID`` допустим и означает «без места хранения».
+        """
+        if "Название" in fields:
+            # Валидация через модель: непустое название.
+            Box(id=box_id, name=str(fields["Название"] or ""))
+        if "Место_ID" in fields:
+            target = str(fields["Место_ID"] or "").strip()
+            if target:
+                locations = self._repo.load_locations()
+                if target not in locations["ID"].astype(str).values:
+                    raise NotFoundError(f"Место хранения с ID {target} не найдено.")
+        self._repo.update_box(box_id, fields)
 
     def delete_box(self, box_id: str) -> DeletedEntry:
         """Убирает ящик в корзину. Вещи остаются (detach), восстановление

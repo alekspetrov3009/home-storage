@@ -86,3 +86,73 @@ def test_delete_location_returns_trash_entry(client, data_file):
     # Повторное удаление — 404.
     assert client.delete("/api/locations/loc1").status_code == 404
     assert "не найдено" in client.delete("/api/locations/loc1").json()["detail"]
+
+
+def test_patch_location_name_and_description(client, data_file):
+    make_new_workbook(
+        data_file,
+        locations=[["loc1", "Гараж", "старое описание", ""]],
+        boxes=[["box1", "Ящик А", "loc1", "", ""]],
+    )
+    response = client.patch(
+        "/api/locations/loc1", json={"name": "Гараж-2", "description": "новое описание"}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name"] == "Гараж-2"
+    assert body["description"] == "новое описание"
+    # Счётчик ящиков не потерялся при переименовании.
+    assert body["box_count"] == 1
+    # Изменения видны и в списке (кэш сброшен).
+    assert client.get("/api/locations").json()[0]["name"] == "Гараж-2"
+
+
+def test_patch_location_duplicate_name_409_with_contract_text(client, data_file):
+    make_new_workbook(
+        data_file,
+        locations=[["loc1", "Гараж", "", ""], ["loc2", "Кладовка", "", ""]],
+    )
+    response = client.patch("/api/locations/loc1", json={"name": "кладовка"})
+    assert response.status_code == 409
+    assert "уже существует" in response.json()["detail"]
+
+
+def test_patch_location_same_name_is_not_duplicate(client, data_file):
+    # Переименование в себя (даже в другом регистре) — легально.
+    make_new_workbook(data_file, locations=[["loc1", "Гараж", "", ""]])
+    response = client.patch("/api/locations/loc1", json={"name": "гараж"})
+    assert response.status_code == 200
+    assert response.json()["name"] == "гараж"
+
+
+def test_patch_location_empty_name_400(client, data_file):
+    make_new_workbook(data_file, locations=[["loc1", "Гараж", "", ""]])
+    response = client.patch("/api/locations/loc1", json={"name": "   "})
+    assert response.status_code == 400
+    assert "Укажите название" in response.json()["detail"]
+
+
+def test_patch_location_unknown_404(client, data_file):
+    make_new_workbook(data_file)
+    response = client.patch("/api/locations/nope", json={"name": "Балкон"})
+    assert response.status_code == 404
+    assert "не найдено" in response.json()["detail"]
+
+
+def test_patch_location_extra_field_422(client, data_file):
+    make_new_workbook(data_file, locations=[["loc1", "Гараж", "", ""]])
+    response = client.patch("/api/locations/loc1", json={"box_count": 5})
+    assert response.status_code == 422
+
+
+def test_patch_location_keeps_box_bindings(client, data_file):
+    # Переименование места не трогает ящики: привязка по ID, имя в ответе новое.
+    make_new_workbook(
+        data_file,
+        locations=[["loc1", "Гараж", "", ""]],
+        boxes=[["box1", "Ящик А", "loc1", "", ""]],
+    )
+    client.patch("/api/locations/loc1", json={"name": "Гараж-2"})
+    boxes = client.get("/api/boxes").json()
+    assert boxes[0]["location_id"] == "loc1"
+    assert boxes[0]["location_name"] == "Гараж-2"

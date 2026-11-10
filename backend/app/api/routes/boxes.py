@@ -12,6 +12,7 @@ from app.api.schemas import (
     BoxCreate,
     BoxDetail,
     BoxOut,
+    BoxUpdate,
     TrashEntryOut,
     box_out,
     item_out,
@@ -97,6 +98,31 @@ def create_box(payload: BoxCreate) -> BoxOut:
 def get_box(box_id: str) -> BoxDetail:
     """Ящик со счётчиками и вещами внутри."""
     return _box_detail(get_service(), box_id)
+
+
+@router.patch("/boxes/{box_id}", response_model=BoxDetail)
+def update_box(box_id: str, payload: BoxUpdate) -> BoxDetail:
+    """Частичное обновление ящика: название, место, описание.
+
+    ``location_id`` обрабатывается как перенос: пустая строка или null —
+    «без места хранения», несуществующее место — 404 (текст add_box).
+    Содержимое не трогается; ответ — свежая деталь со счётчиками.
+    """
+    service = get_service()
+    provided = payload.model_fields_set
+
+    fields: dict[str, Any] = {}
+    if payload.name is not None:
+        fields["Название"] = payload.name
+    if "location_id" in provided:
+        fields["Место_ID"] = (payload.location_id or "").strip()
+    if payload.description is not None:
+        fields["Описание"] = payload.description
+
+    if fields:
+        service.update_box(box_id, fields)
+        service.clear_cache()
+    return _box_detail(service, box_id)
 
 
 @router.delete("/boxes/{box_id}", response_model=TrashEntryOut)

@@ -141,10 +141,28 @@ class LocationCreate(_Input):
     description: str = ""
 
 
+class LocationUpdate(_Input):
+    """Частичное обновление места хранения: None = поле не передано (или null)."""
+
+    name: str | None = None
+    description: str | None = None
+
+
 class BoxCreate(_Input):
     name: str
     location_id: str = ""
     description: str = ""
+
+
+class BoxUpdate(_Input):
+    """Частичное обновление ящика: None = поле не передано (или null).
+
+    Пустая строка/NULL в ``location_id`` — «без места хранения».
+    """
+
+    name: str | None = None
+    location_id: str | None = None
+    description: str | None = None
 
 
 class ItemCreate(_Input):
