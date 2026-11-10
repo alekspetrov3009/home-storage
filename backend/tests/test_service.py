@@ -210,7 +210,7 @@ def test_cached_repository_delegates_writes_and_all_reads(data_file):
             recorded.append(("delete_location", location_id))
             return DeletedEntry("место", location_id, "Гараж", "", "", {})
 
-        def add_box(self, name, location_id, description):
+        def add_box(self, name, location_id, description, color=""):
             recorded.append(("add_box", name))
             return "box1"
 

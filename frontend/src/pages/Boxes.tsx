@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { createBox, fetchBoxes, fetchLocations } from "../api";
+import { createBox, fetchBoxes, fetchLocations, type Box } from "../api";
 import { useApi } from "../useApi";
 import {
   EmptyState,
@@ -13,6 +13,14 @@ import {
 } from "../components/ui";
 import BoxCard from "../components/BoxCard";
 
+const NO_LOCATION = "__no_location__";
+
+interface BoxGroup {
+  key: string;
+  name: string;
+  boxes: Box[];
+}
+
 export default function Boxes() {
   const boxes = useApi(fetchBoxes);
   const locations = useApi(fetchLocations);
@@ -20,6 +28,27 @@ export default function Boxes() {
   const bump = useBump();
   const toast = useToast();
   const navigate = useNavigate();
+
+  const groups = useMemo<BoxGroup[]>(() => {
+    const data = boxes.data;
+    if (!data) return [];
+    const byKey = new Map<string, BoxGroup>();
+    for (const box of data) {
+      const key = box.location_id || NO_LOCATION;
+      const group = byKey.get(key) ?? {
+        key,
+        name: box.location_name ?? "Без места хранения",
+        boxes: [],
+      };
+      group.boxes.push(box);
+      byKey.set(key, group);
+    }
+    return [...byKey.values()].sort((a, b) => {
+      if (a.key === NO_LOCATION) return 1;
+      if (b.key === NO_LOCATION) return -1;
+      return a.name.localeCompare(b.name, "ru");
+    });
+  }, [boxes.data]);
 
   return (
     <>
@@ -48,11 +77,18 @@ export default function Boxes() {
             }
           />
         ) : (
-          <div className="grid-cards">
-            {boxes.data.map((box) => (
-              <BoxCard key={box.id} box={box} />
-            ))}
-          </div>
+          groups.map((group) => (
+            <section key={group.key} className="section">
+              <h2 className="overline">
+                {group.name} · {group.boxes.length}
+              </h2>
+              <div className="grid-cards">
+                {group.boxes.map((box) => (
+                  <BoxCard key={box.id} box={box} />
+                ))}
+              </div>
+            </section>
+          ))
         ))}
 
       {creating && (

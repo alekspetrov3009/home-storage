@@ -12,6 +12,7 @@ from typing import Any, Mapping
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.domain.colors import pick_box_color
 from app.domain.trash import DeletedEntry
 from app.helpers import to_qty
 
@@ -49,6 +50,8 @@ class BoxOut(BaseModel):
     """Ящик с местом хранения и счётчиками вещей.
 
     ``location_name`` — None, если ящик «без места хранения».
+    ``color`` — цвет карточки: из колонки «Цвет», а для старых ящиков —
+    авто-выбор из палитры по ID.
     """
 
     id: str
@@ -59,6 +62,7 @@ class BoxOut(BaseModel):
     created_at: str
     item_count: int
     unit_count: int
+    color: str
 
 
 class BoxDetail(BoxOut):
@@ -242,6 +246,7 @@ def box_out(
         created_at=_text(row.get("Создан")),
         item_count=item_count,
         unit_count=unit_count,
+        color=_text(row.get("Цвет")) or pick_box_color(_text(row.get("ID"))),
     )
 
 

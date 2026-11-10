@@ -103,7 +103,14 @@ function BoxDetailById({ boxId }: { boxId: string }) {
           <p className="dim">
             <Link to="/boxes">Ящики</Link> / {data.name}
           </p>
-          <h1>{data.name}</h1>
+          <h1>
+            <span
+              className="box-color-dot"
+              style={{ background: data.color }}
+              aria-hidden="true"
+            />
+            {data.name}
+          </h1>
           <div className="detail-chips">
             {data.location_name ? (
               <Chip>{data.location_name}</Chip>

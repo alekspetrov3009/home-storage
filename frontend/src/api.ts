@@ -25,6 +25,7 @@ export interface Box {
   created_at: string;
   item_count: number;
   unit_count: number;
+  color: string;
 }
 
 export interface BoxDetail extends Box {

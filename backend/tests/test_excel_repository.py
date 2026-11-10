@@ -57,6 +57,7 @@ def test_save_load_roundtrip_identical_data(repo, data_file):
             "Место_ID": loc_id,
             "Описание": "инструменты",
             "Создан": boxes.iloc[0]["Создан"],
+            "Цвет": "",
         }
     ]
     assert locations.iloc[0]["Название"] == "Гараж"
@@ -118,13 +119,24 @@ def test_unknown_box_format_is_left_untouched(repo, data_file):
     assert rows[1][2] == "значение"
 
 
-def test_new_format_file_is_not_rewritten(repo, data_file):
+def test_new_format_file_gets_color_column_once(repo, data_file):
+    """Файл нового формата (без «Цвет») дополняется колонкой один раз.
+
+    Первое чтение добавляет шапку «Цвет» и сохраняет файл, повторные чтения
+    файл не переписывают.
+    """
     path = make_new_workbook(
         data_file, boxes=[["box1", "Ящик А", "locX", "", "2024-01-01 10:00:00"]]
     )
-    before = path.read_bytes()
     repo.load_boxes()
-    assert path.read_bytes() == before
+    header, first = read_sheet(data_file, "Ящики")
+    assert header == BOX_FIELDS
+    assert first[0] == "box1"
+    assert first[5] is None  # цвет пустой, авто-цвет подставляет API
+
+    after_first = path.read_bytes()
+    repo.load_boxes()
+    assert path.read_bytes() == after_first
 
 
 # --------------------------------------------------------------------------- #

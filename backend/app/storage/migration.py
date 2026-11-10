@@ -18,7 +18,26 @@ from app.storage.schema import (
     SHEET_LOCATIONS,
     ensure_worksheet,
 )
-__all__ = ["migrate_legacy_boxes"]
+__all__ = ["migrate_box_color_column", "migrate_legacy_boxes"]
+
+
+def migrate_box_color_column(wb) -> bool:
+    """Добавляет колонку «Цвет» на лист «Ящики», если её ещё нет.
+
+    Файлы, созданные до появления цветов, остаются валидными: у существующих
+    ящиков цвет пустой, и API подставляет авто-цвет по ID. Возвращает True,
+    если книгу изменили и её нужно сохранить.
+    """
+    if SHEET_BOXES not in wb.sheetnames:
+        return False
+    ws = wb[SHEET_BOXES]
+    if ws.max_row < 1:
+        return False
+    header = ["" if c.value is None else str(c.value) for c in ws[1]]
+    if "Цвет" in header:
+        return False
+    ws.cell(row=1, column=len(BOX_HEADERS), value="Цвет")
+    return True
 
 
 def migrate_legacy_boxes(wb) -> bool:
@@ -62,7 +81,7 @@ def migrate_legacy_boxes(wb) -> bool:
                 loc_ws.append([loc_id, place, "", now_str()])
             else:
                 loc_id = existing[key]
-        rows.append([str(row[0]), str(row[1] or ""), loc_id, str(row[3] or ""), str(row[4] or "")])
+        rows.append([str(row[0]), str(row[1] or ""), loc_id, str(row[3] or ""), str(row[4] or ""), ""])
 
     # Переписываем лист ящиков в новом формате и возвращаем его на первое место.
     del wb[SHEET_BOXES]

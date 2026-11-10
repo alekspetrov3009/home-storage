@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchBoxes, fetchCategories, fetchItems } from "../api";
+import { fetchBoxes, fetchItems, fetchLocations, type Box, type Item } from "../api";
 import { useApi } from "../useApi";
 import {
   Card,
@@ -15,6 +15,13 @@ import ItemsTable from "./ItemsTable";
 type View = "cards" | "table";
 
 const VIEW_KEY = "hs-items-view";
+const NO_LOCATION = "__no_location__";
+
+interface ItemGroup {
+  key: string;
+  name: string;
+  items: Item[];
+}
 
 function savedView(): View {
   try {
@@ -26,15 +33,13 @@ function savedView(): View {
 
 export default function Items() {
   const [view, setView] = useState<View>(savedView);
+  const [locationFilter, setLocationFilter] = useState("");
   const [boxFilter, setBoxFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
 
   const boxes = useApi(fetchBoxes);
-  const categories = useApi(fetchCategories);
-  const items = useApi(
-    () => fetchItems({ box_id: boxFilter, category: categoryFilter }),
-    [boxFilter, categoryFilter],
-  );
+  const locations = useApi(fetchLocations);
+  const items = useApi(fetchItems);
 
   useEffect(() => {
     try {
@@ -44,7 +49,103 @@ export default function Items() {
     }
   }, [view]);
 
-  const filtered = Boolean(boxFilter || categoryFilter);
+  // Вещь → место: через её ящик; ящики с удалённым местом считаются «без места».
+  const boxLocation = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const box of boxes.data ?? []) {
+      if (box.location_id && box.location_name) map.set(box.id, box.location_id);
+    }
+    return map;
+  }, [boxes.data]);
+
+  const locationNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const location of locations.data ?? []) map.set(location.id, location.name);
+    return map;
+  }, [locations.data]);
+
+  // Шаг 1: вещи выбранного места.
+  const atLocation = useMemo(() => {
+    const data = items.data;
+    if (!data) return [];
+    if (!locationFilter) return data;
+    return data.filter((item) => {
+      const locId = boxLocation.get(item.box_id) ?? "";
+      return locationFilter === NO_LOCATION ? locId === "" : locId === locationFilter;
+    });
+  }, [items.data, locationFilter, boxLocation]);
+
+  // Ящики выбранного места (для чипов и группировки).
+  const availableBoxes = useMemo<Box[]>(() => {
+    const data = boxes.data ?? [];
+    if (!locationFilter) return data;
+    if (locationFilter === NO_LOCATION) {
+      return data.filter((box) => !(box.location_id && box.location_name));
+    }
+    return data.filter((box) => box.location_id === locationFilter);
+  }, [boxes.data, locationFilter]);
+
+  // Шаг 2: вещи выбранного места и ящика — из них складываются категории.
+  const inBox = useMemo(
+    () => atLocation.filter((item) => !boxFilter || item.box_id === boxFilter),
+    [atLocation, boxFilter],
+  );
+
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const item of inBox) {
+      if (item.category) set.add(item.category);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, "ru"));
+  }, [inBox]);
+
+  // Шаг 3: плюс выбранная категория — итоговый список.
+  const located = useMemo(
+    () =>
+      inBox.filter((item) => !categoryFilter || item.category === categoryFilter),
+    [inBox, categoryFilter],
+  );
+
+  // Смена места может сделать выбранные ящик/категорию недоступными — сбрасываем.
+  useEffect(() => {
+    if (boxFilter && !availableBoxes.some((box) => box.id === boxFilter)) {
+      setBoxFilter("");
+    }
+  }, [boxFilter, availableBoxes]);
+
+  useEffect(() => {
+    if (categoryFilter && !availableCategories.includes(categoryFilter)) {
+      setCategoryFilter("");
+    }
+  }, [categoryFilter, availableCategories]);
+
+  const groups = useMemo<ItemGroup[]>(() => {
+    const byKey = new Map<string, ItemGroup>();
+    for (const item of located) {
+      const locId = boxLocation.get(item.box_id) ?? "";
+      const key = locId || NO_LOCATION;
+      const group = byKey.get(key) ?? {
+        key,
+        name: locationNames.get(locId) ?? "Без места хранения",
+        items: [],
+      };
+      group.items.push(item);
+      byKey.set(key, group);
+    }
+    return [...byKey.values()].sort((a, b) => {
+      if (a.key === NO_LOCATION) return 1;
+      if (b.key === NO_LOCATION) return -1;
+      return a.name.localeCompare(b.name, "ru");
+    });
+  }, [located, boxLocation, locationNames]);
+
+  const filtered = Boolean(boxFilter || categoryFilter || locationFilter);
+
+  const resetFilters = () => {
+    setLocationFilter("");
+    setBoxFilter("");
+    setCategoryFilter("");
+  };
 
   return (
     <>
@@ -52,7 +153,7 @@ export default function Items() {
         <div>
           <h1>Вещи</h1>
           <p className="page-sub">
-            {items.data ? `Найдено: ${items.data.length}` : "Что и где лежит"}
+            {items.data ? `Найдено: ${located.length}` : "Что и где лежит"}
           </p>
         </div>
         <span className="segmented" role="tablist" aria-label="Вид списка">
@@ -75,16 +176,37 @@ export default function Items() {
 
       {view === "cards" ? (
         <>
+          <div className="section" style={{ maxWidth: 320 }}>
+            <select
+              className="select"
+              value={locationFilter}
+              onChange={(event) => setLocationFilter(event.target.value)}
+              aria-label="Место хранения"
+            >
+              <option value="">Все места</option>
+              {(locations.data ?? []).map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
+              <option value={NO_LOCATION}>— без места —</option>
+            </select>
+          </div>
           <div className="chips-row section">
             <Chip active={!boxFilter} onClick={() => setBoxFilter("")}>
               Все ящики
             </Chip>
-            {(boxes.data ?? []).map((box) => (
+            {availableBoxes.map((box) => (
               <Chip
                 key={box.id}
                 active={boxFilter === box.id}
                 onClick={() => setBoxFilter(boxFilter === box.id ? "" : box.id)}
               >
+                <span
+                  className="box-color-dot sm"
+                  style={{ background: box.color }}
+                  aria-hidden="true"
+                />
                 {box.name}
               </Chip>
             ))}
@@ -93,7 +215,7 @@ export default function Items() {
             <Chip active={!categoryFilter} onClick={() => setCategoryFilter("")}>
               Все категории
             </Chip>
-            {(categories.data ?? []).map((category) => (
+            {availableCategories.map((category) => (
               <Chip
                 key={category}
                 active={categoryFilter === category}
@@ -109,7 +231,7 @@ export default function Items() {
           {items.error && <ErrorState message={items.error} />}
           {items.loading && <SkeletonGrid />}
           {items.data &&
-            (items.data.length === 0 ? (
+            (located.length === 0 ? (
               filtered ? (
                 <Card>
                   <EmptyState
@@ -120,10 +242,7 @@ export default function Items() {
                       <button
                         type="button"
                         className="btn btn-outline"
-                        onClick={() => {
-                          setBoxFilter("");
-                          setCategoryFilter("");
-                        }}
+                        onClick={resetFilters}
                       >
                         Сбросить фильтры
                       </button>
@@ -143,19 +262,26 @@ export default function Items() {
                 />
               )
             ) : (
-              <div className="grid-cards">
-                {items.data.map((item) => (
-                  <ItemCard key={item.id} item={item} />
-                ))}
-              </div>
+              groups.map((group) => (
+                <section key={group.key} className="section">
+                  <h2 className="overline">
+                    {group.name} · {group.items.length}
+                  </h2>
+                  <div className="grid-cards">
+                    {group.items.map((item) => (
+                      <ItemCard key={item.id} item={item} />
+                    ))}
+                  </div>
+                </section>
+              ))
             ))}
         </>
       ) : (
         <>
           {filtered && (
             <p className="dim mb-16">
-              Таблица всегда показывает все вещи: массовое сохранение перезаписывает
-              весь лист. Фильтры действуют только на карточки.
+              Массовое сохранение перезаписывает весь лист целиком: фильтры таблицы
+              скрывают строки только на экране, при сохранении записываются все строки.
             </p>
           )}
           <ItemsTable />

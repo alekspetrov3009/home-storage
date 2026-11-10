@@ -34,7 +34,7 @@ from app.domain.trash import (
     parse_ts,
 )
 from app.storage import schema
-from app.storage.migration import migrate_legacy_boxes
+from app.storage.migration import migrate_box_color_column, migrate_legacy_boxes
 from app.storage.schema import (
     BOX_HEADERS,
     ITEM_HEADERS,
@@ -119,7 +119,10 @@ class ExcelRepository:
         self._ensure_file()
         try:
             wb = load_workbook(self._data_file)
-            if migrate_legacy_boxes(wb):
+            changed = migrate_legacy_boxes(wb)
+            if migrate_box_color_column(wb):
+                changed = True
+            if changed:
                 self._save_workbook(wb)
             return wb
         except FileNotFoundError as exc:
@@ -401,7 +404,7 @@ class ExcelRepository:
     # Ящики
     # ------------------------------------------------------------------ #
 
-    def add_box(self, name: str, location_id: str, description: str) -> str:
+    def add_box(self, name: str, location_id: str, description: str, color: str = "") -> str:
         """Создаёт ящик, привязав его к месту хранения по ID (пустая строка — без места)."""
         with self._lock:
             wb = self._load_workbook()
@@ -411,7 +414,7 @@ class ExcelRepository:
                     raise NotFoundError(f"Место хранения с ID {location_id} не найдено.")
             ws, _ = ensure_worksheet(wb, SHEET_BOXES, BOX_HEADERS)
             box_id = new_id()
-            ws.append([box_id, name.strip(), location_id, description.strip(), now_str()])
+            ws.append([box_id, name.strip(), location_id, description.strip(), now_str(), color.strip()])
             self._save_workbook(wb)
             return box_id
 

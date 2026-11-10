@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 
 LOCATION_FIELDS = ["ID", "Название", "Описание", "Создан"]
-BOX_FIELDS = ["ID", "Название", "Место_ID", "Описание", "Создан"]
+BOX_FIELDS = ["ID", "Название", "Место_ID", "Описание", "Создан", "Цвет"]
 ITEM_FIELDS = [
     "ID", "Название", "Ящик_ID", "Количество", "Категория", "Заметки", "Обновлён",
 ]

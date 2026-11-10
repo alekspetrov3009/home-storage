@@ -4,7 +4,7 @@ import { Card, Chip } from "./ui";
 
 export default function BoxCard({ box }: { box: Box }) {
   return (
-    <Card hover className="box-card">
+    <Card hover className="box-card" style={{ borderTop: `4px solid ${box.color}` }}>
       <div className="box-card-title">
         <Link to={`/box?box=${encodeURIComponent(box.id)}`}>{box.name}</Link>
         <span className="box-card-count num">

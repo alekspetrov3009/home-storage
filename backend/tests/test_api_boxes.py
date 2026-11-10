@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from app.domain.colors import pick_box_color
+
 from conftest import make_new_workbook
 
 
@@ -32,6 +34,7 @@ def test_list_boxes_with_counters(client, data_file):
             "created_at": "",
             "item_count": 2,
             "unit_count": 5,
+            "color": pick_box_color("box1"),
         },
         {
             "id": "box2",
@@ -42,6 +45,7 @@ def test_list_boxes_with_counters(client, data_file):
             "created_at": "",
             "item_count": 1,
             "unit_count": 100,
+            "color": pick_box_color("box2"),
         },
     ]
 

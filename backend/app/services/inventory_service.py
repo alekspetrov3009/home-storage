@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from app.domain.categories import normalize_category, unique_categories
+from app.domain.colors import pick_box_color
 from app.domain.errors import NotFoundError, ValidationError
 from app.domain.fields import ITEM_FIELDS, now_str
 from app.domain.ids import new_id
@@ -91,9 +92,15 @@ class InventoryService:
     # ------------------------------------------------------------------ #
 
     def create_box(self, name: str, location_id: str, description: str) -> str:
-        """Создаёт ящик, при необходимости проверяя существование места."""
+        """Создаёт ящик, при необходимости проверяя существование места.
+
+        Цвет выбирается автоматически из палитры по ID (app.domain.colors)
+        и сохраняется в колонке «Цвет».
+        """
         box = Box(id=new_id(), name=name, location_id=location_id, description=description)
-        return self._repo.add_box(box.name, box.location_id, box.description)
+        return self._repo.add_box(
+            box.name, box.location_id, box.description, pick_box_color(box.id)
+        )
 
     def update_box(self, box_id: str, fields: dict[str, Any]) -> None:
         """Точечно обновляет поля ящика, валидируя название и место.
