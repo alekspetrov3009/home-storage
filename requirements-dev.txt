@@ -1,0 +1,4 @@
+# Зависимости для разработки и тестов (не входят в docker-образ).
+# Установка: pip install -r requirements-dev.txt
+pytest==9.2.0
+pytest-cov==7.0.0

@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+.idea/
+.vscode/
+.pytest_cache/
+.coverage
+# Локальные файлы данных и резервные копии
+*.xlsx
+*.xlsx.*.backup.xlsx
+*.tmp
+# Рантайм-артефакты приложения
+streamlit.log
+_qr_*.png

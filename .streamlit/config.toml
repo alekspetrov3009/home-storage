@@ -1,0 +1,15 @@
+# Тема приложения: тёмная по умолчанию. Светлая включается переключателем
+# в боковой панели (?theme=light) или выбором темы в меню Settings —
+# тонкая настройка поверх выполняется через CSS в app/ui/styles.py.
+[theme]
+base = "dark"
+primaryColor = "#7C8CFF"
+backgroundColor = "#0F1117"
+secondaryBackgroundColor = "#1B2130"
+textColor = "#E8EBF4"
+font = "sans serif"
+
+# Убираем «Deploy» и прочий служебный хром из шапки, но оставляем меню
+# Settings: выбор темы там (Light/Dark) перекрашивает и таблицу-редактор.
+[client]
+toolbarMode = "viewer"

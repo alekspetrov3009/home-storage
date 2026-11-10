@@ -1,0 +1,41 @@
+services:
+  home-inventory:
+    build: .
+    image: home-inventory:latest
+    container_name: home-inventory
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    environment:
+      # Путь к файлу-хранилищу внутри контейнера.
+      DATA_FILE: "${DATA_FILE:-/data/inventory.xlsx}"
+      APP_TITLE: "${APP_TITLE:-📦 Домашний склад}"
+      # Базовый URL приложения для QR-кодов ящиков (адрес, доступный с телефона).
+      # Без значения по умолчанию: тогда срабатывает fallback qr.py — адрес
+      # берётся из Host текущего запроса (телефон в той же сети), и QR-коды
+      # не указывают мимо на localhost. Задайте BASE_URL в .env для
+      # фиксированного адреса.
+      BASE_URL: "${BASE_URL:-}"
+      TZ: "Europe/Moscow"
+    volumes:
+      # Именованный том: данные переживают пересборку и удаление контейнера.
+      # Посмотреть файл с хоста: docker compose cp home-inventory:/data/inventory.xlsx ./
+      - inventory-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health')"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  inventory-data:
