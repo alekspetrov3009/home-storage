@@ -1,5 +1,73 @@
 # Журнал изменений
 
+## Разделение на backend/ и frontend/ (FastAPI + React)
+
+Streamlit-интерфейс удалён; вместо него — REST API на FastAPI и отдельное
+React-приложение. Слои `domain / services / storage` (отделены от UI ещё
+в рефакторинге слоистой архитектуры) переиспользованы без изменения логики;
+формат файла данных не меняется — старые `inventory.xlsx` открываются как раньше.
+
+### Структура
+
+- **`backend/`** — пакет `app/` перенесён целиком (`git mv`), история слоёв
+  `services → domain ← storage` сохранена; тесты переехали в `backend/tests/`.
+- **`backend/app/api/`** (новое) — FastAPI: `create_app()` (CORS +
+  `include_router`), `GET /api/health` → `{"status":"ok"}`, `GET /api/stats` →
+  `{boxes, items, units, locations}` (units через `qty_total`). Бизнес-логики
+  в роутерах нет — только вызов сервиса; `StorageError` → `503` с текстом-
+  контрактом. Pydantic-схемы — `api/schemas.py`.
+- **`frontend/`** (новое) — React 19 + Vite + TypeScript: страница со сводкой
+  склада (4 карточки-счётчика), состояния loading/error; адрес API — из
+  `VITE_API_URL` (по умолчанию `http://localhost:8000`). Полный дизайн
+  calm dashboard и все страницы — итерация 2.
+- **Корень** — `package.json` с `concurrently`: `npm run dev` поднимает API
+  (порт 8000) и фронтенд (порт 5173, strictPort) одной командой; раздельные
+  `dev:api` / `dev:web`.
+- Удалены: `app/ui/`, `main.py`, `.streamlit/`, `Dockerfile`,
+  `.dockerignore`, `docker-compose.yml` (описывали только Streamlit),
+  qrcode/pillow-зависимости.
+
+### Логика
+
+- **`app/services/caching.py` переписан без streamlit**: вместо
+  `st.cache_data` — чистый TTL-кэш (словарь «результат + ``time.monotonic()``»,
+  30 секунд, `threading.RLock` на чтение/сброс). Контракт прежний: кэшируются
+  только чтения, записи идут напрямую, `clear_cache()` без изменений.
+- **Чистые хелперы выведены из UI-слоя**: `location_label_map`,
+  `box_label_map`, `clean_text`, `clean_id`, `to_qty`, `qty_total`,
+  `item_row_changed` и константы «— без ящика —» / «— без места хранения —» —
+  теперь `backend/app/helpers.py`; `NEW_CATEGORY`, `category_options`,
+  `normalize_category`, `resolve_category` — `backend/app/domain/categories.py`
+  (рядом с `unique_categories`). Локальные импорты внутри хелперов
+  перенаправлены на новые модули.
+- **`app/config.py`** — новое поле `cors_origins: tuple[str, ...]` из env
+  `CORS_ORIGINS` (split по запятой, дефолт `("http://localhost:5173",)`) —
+  в том же паттерне, что остальные поля (frozen dataclass + `lru_cache`).
+
+### Тесты
+
+- `test_helpers.py` и `test_forms.py` — импорты переведены на новые модули;
+  все 128 прежних тестов живут.
+- Новый `tests/test_api.py` (3 теста, TestClient на httpx): health → ok;
+  stats — форма полей и значения на фикстурном xlsx; повреждённый файл → 503
+  с текстом-контрактом. Перед прогоном сбрасываются `get_config`-кэш и
+  синглтон сервиса, `DATA_FILE` указывает на tmp-файл.
+- Итог: **131 тест, все зелёные**. В `requirements-dev.txt` добавлен
+  `httpx` (нужен TestClient).
+
+### Запуск
+
+- Backend: `cd backend` → `python -m venv .venv` → `pip install -r
+  requirements.txt -r requirements-dev.txt` → `.venv\Scripts\python -m
+  uvicorn app.api.main:app --port 8000 --reload`. Проверка —
+  `http://localhost:8000/api/health`, интерактивные доки — `/docs`.
+- Frontend: `cd frontend` → `npm install` → `npm run dev` →
+  `http://localhost:5173`.
+- Одной командой (после разовой установки): в корне `npm install` →
+  `npm run dev`.
+- CORS: backend разрешает источники из `CORS_ORIGINS` (по умолчанию
+  `http://localhost:5173`); адрес API для фронтенда — `VITE_API_URL`.
+
 ## Перерисовка фронтенда: calm dashboard
 
 Полная перестройка композиции страниц и дизайн-системы (эстетика

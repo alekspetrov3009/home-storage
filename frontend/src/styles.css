@@ -1,0 +1,91 @@
+/* Минимальные стили первой страницы (полный перенос calm dashboard — итерация 2). */
+
+:root {
+  color-scheme: light;
+  --bg: #f4f4f6;
+  --card: #ffffff;
+  --text: #27272a;
+  --muted: #71717a;
+  --accent: #4f46e5;
+  --accent-soft: #eef2ff;
+  --error: #b91c1c;
+  --error-soft: #fef2f2;
+  --radius: 16px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+}
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 20px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 650;
+}
+
+.hero-caption {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.stats {
+  margin-top: 32px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+.stat-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 8px 24px -12px rgb(0 0 0 / 0.12);
+}
+
+.stat-icon {
+  font-size: 1.4rem;
+}
+
+.stat-num {
+  margin-top: 8px;
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.state {
+  margin-top: 32px;
+  color: var(--muted);
+}
+
+.error-state {
+  background: var(--error-soft);
+  border-radius: var(--radius);
+  padding: 20px;
+  color: var(--error);
+}
+
+.error-state .state-hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 4px 0 0;
+}

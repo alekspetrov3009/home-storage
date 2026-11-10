@@ -11,6 +11,6 @@ venv/
 *.xlsx
 *.xlsx.*.backup.xlsx
 *.tmp
-# Рантайм-артефакты приложения
-streamlit.log
-_qr_*.png
+# Node / фронтенд
+node_modules/
+frontend/dist/

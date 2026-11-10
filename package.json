@@ -1,0 +1,14 @@
+{
+  "name": "home-storage",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Домашний склад: FastAPI backend + React frontend",
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"cd backend && .venv\\Scripts\\python -m uvicorn app.api.main:app --port 8000 --reload\" \"npm --prefix frontend run dev\"",
+    "dev:api": "cd backend && .venv\\Scripts\\python -m uvicorn app.api.main:app --port 8000 --reload",
+    "dev:web": "npm --prefix frontend run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}
