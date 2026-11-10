@@ -33,6 +33,9 @@ export default function Layout() {
     navigate(`/search?q=${encodeURIComponent(q)}`);
   };
 
+  const boxId = location.pathname === "/box" ? params.get("box") ?? "" : "";
+  const addTarget = boxId ? `/add?box=${encodeURIComponent(boxId)}` : "/add";
+
   const makeBackup = async () => {
     try {
       const { path } = await createBackup();
@@ -103,7 +106,7 @@ export default function Layout() {
             />
           </form>
           <div className="topbar-actions">
-            <NavLink to="/add" className="btn btn-primary">
+            <NavLink to={addTarget} className="btn btn-primary">
               ＋<span className="add-text">&nbsp;Добавить</span>
             </NavLink>
           </div>

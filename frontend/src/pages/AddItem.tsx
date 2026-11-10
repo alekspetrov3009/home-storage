@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState, type FormEvent } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { createItem, fetchBoxes, fetchCategories, type ItemInput } from "../api";
 import { useApi } from "../useApi";
 import {
@@ -17,15 +17,27 @@ export default function AddItem() {
   const bump = useBump();
   const toast = useToast();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const requestedBoxId = params.get("box") ?? "";
 
   const [name, setName] = useState("");
-  const [boxId, setBoxId] = useState("");
+  const [boxId, setBoxId] = useState(requestedBoxId);
   const [quantity, setQuantity] = useState("1");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [typedCategory, setTypedCategory] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (requestedBoxId) setBoxId(requestedBoxId);
+  }, [requestedBoxId]);
+
+  useEffect(() => {
+    if (boxId && boxes.data && !boxes.data.some((box) => box.id === boxId)) {
+      setBoxId("");
+    }
+  }, [boxId, boxes.data]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -52,7 +64,11 @@ export default function AddItem() {
       const created = await createItem(payload);
       bump();
       toast(`Вещь «${created.name}» добавлена`);
-      navigate(`/item/${encodeURIComponent(created.id)}`);
+      if (payload.box_id) {
+        navigate(`/box?box=${encodeURIComponent(payload.box_id)}`);
+      } else {
+        navigate(`/item/${encodeURIComponent(created.id)}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);

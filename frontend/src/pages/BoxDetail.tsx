@@ -133,9 +133,9 @@ function BoxDetailById({ boxId }: { boxId: string }) {
             <EmptyState
               icon="🧾"
               title="Ящик пуст"
-              hint="Добавьте вещь и выберите этот ящик."
+              hint="Добавьте вещь — этот ящик будет выбран автоматически."
               action={
-                <Link to="/add" className="btn btn-primary">
+                <Link to={`/add?box=${encodeURIComponent(data.id)}`} className="btn btn-primary">
                   ＋ Добавить вещь
                 </Link>
               }
