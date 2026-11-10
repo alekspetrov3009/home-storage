@@ -12,11 +12,13 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Any
 
-from app.domain.categories import unique_categories
-from app.domain.errors import ValidationError
+from app.domain.categories import normalize_category, unique_categories
+from app.domain.errors import NotFoundError, ValidationError
+from app.domain.fields import ITEM_FIELDS, now_str
 from app.domain.ids import new_id
 from app.domain.models import Box, Item, Location
 from app.domain.trash import TRASH_RETENTION_DAYS, DeletedEntry
+from app.helpers import clean_id, clean_text, item_row_changed, to_qty
 from app.services.repository import InventoryRepository
 
 
@@ -123,7 +125,7 @@ class InventoryService:
         """Переносит вещь в другой ящик, проверяя, что целевой ящик существует."""
         boxes = self._repo.load_boxes()
         if str(target_box_id) not in boxes["ID"].astype(str).values:
-            raise ValidationError(f"Ящик с ID {target_box_id} не найден.")
+            raise NotFoundError(f"Ящик с ID {target_box_id} не найден.")
         self._repo.update_item(item_id, {"Ящик_ID": target_box_id})
 
     def delete_item(self, item_id: str) -> DeletedEntry:
@@ -137,6 +139,56 @@ class InventoryService:
     def replace_items(self, df: pd.DataFrame) -> None:
         """Полная перезапись листа «Вещи» (редактор таблицы)."""
         self._repo.replace_items(df)
+
+    def save_items_table(self, rows: list[dict[str, Any]]) -> int:
+        """Bulk-save таблицы вещей: нормализация, отметки, полная перезапись.
+
+        Принимает строки редактора таблицы с английскими ключами (id, name,
+        box_id, quantity, category, notes). Ячейки нормализуются как в прежнем
+        редакторе (``clean_text``/``clean_id``/``to_qty``), категория сводится
+        к каноническому написанию, пустой ID получает новый. Отметка «Обновлён»
+        ставится только новым и фактически изменённым строкам
+        (``item_row_changed``), иначе каждое сохранение «обновляло» бы всю
+        таблицу. Валидация: пустое название и несуществующий ящик —
+        ValidationError. Возвращает число записанных строк.
+        """
+        items = self.load_items()
+        categories = self.get_categories()
+        boxes = self.load_boxes()
+        box_ids = set(boxes["ID"].astype(str).tolist())
+        originals = {str(row["ID"]): row for _, row in items.iterrows()}
+
+        prepared: list[dict[str, Any]] = []
+        for raw in rows:
+            item_id = clean_id(raw.get("id", ""))
+            name = clean_text(raw.get("name", ""))
+            if not name:
+                raise ValidationError("Укажите название вещи.")
+            box_id = clean_id(raw.get("box_id", ""))
+            if box_id and box_id not in box_ids:
+                raise ValidationError(f"Ящик с ID {box_id} не найден.")
+
+            values = {
+                "ID": item_id or new_id(),
+                "Название": name,
+                "Ящик_ID": box_id,
+                "Количество": to_qty(raw.get("quantity", 0)),
+                "Категория": normalize_category(
+                    clean_text(raw.get("category", "")), categories
+                ),
+                "Заметки": clean_text(raw.get("notes", "")),
+            }
+            original = originals.get(item_id)
+            unchanged = original is not None and not item_row_changed(
+                original, values, categories
+            )
+            values["Обновлён"] = (
+                clean_text(original.get("Обновлён", "")) if unchanged else now_str()
+            )
+            prepared.append(values)
+
+        self._repo.replace_items(pd.DataFrame(prepared, columns=ITEM_FIELDS))
+        return len(prepared)
 
     # ------------------------------------------------------------------ #
     # Поиск

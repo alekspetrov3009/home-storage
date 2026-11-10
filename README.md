@@ -16,16 +16,16 @@ API касается только сервисов и никогда не тро
 ├── backend/
 │   ├── app/
 │   │   ├── api/                  # REST API (FastAPI) — единственный слой поверх сервисов
-│   │   │   ├── main.py           #   create_app(): CORS + роутеры; цель uvicorn app.api.main:app
-│   │   │   ├── routes.py         #   GET /api/health, GET /api/stats
-│   │   │   └── schemas.py        #   pydantic-схемы ответов
+│   │   │   ├── main.py           #   create_app(): CORS + exception-хендлеры + роутеры
+│   │   │   ├── routes/           #   роутеры по сущностям: health, locations, boxes, items, trash
+│   │   │   └── schemas.py        #   pydantic-схемы + маппинг DataFrame → ответы + слаги корзины
 │   │   ├── config.py             # Конфигурация из переменных окружения (DATA_FILE, CORS_ORIGINS, …)
 │   │   ├── context.py            # Точка сборки: репозиторий + кэш + сервис
 │   │   ├── helpers.py            # Чистые хелперы данных (подписи, очистка ячеек, суммы)
 │   │   ├── domain/               # Домен: сущности и инварианты (ни от чего не зависит)
 │   │   │   ├── models.py         #   Location, Box, Item + валидация
 │   │   │   ├── ids.py            #   генерация 8-символьных ID
-│   │   │   ├── errors.py         #   StorageError, ValidationError
+│   │   │   ├── errors.py         #   StorageError + NotFoundError/ConflictError/ValidationError
 │   │   │   ├── fields.py         #   канонические названия колонок листов
 │   │   │   ├── categories.py     #   общий справочник категорий + нормализация
 │   │   │   └── trash.py          #   корзина: типы записей, срок 30 дней, expiry
@@ -38,7 +38,7 @@ API касается только сервисов и никогда не тро
 │   │       ├── inventory_service.py # InventoryService: создание/перенос/удаление/поиск/бэкап
 │   │       └── caching.py        #   кэш чтений на 30 секунд (чистый TTL, без фреймворка)
 │   ├── tests/                    # pytest: домен, миграция, хранилище, сервисы, API
-│   ├── requirements.txt          # Зависимости backend (pandas, openpyxl, fastapi, uvicorn)
+│   ├── requirements.txt          # Зависимости backend (pandas, openpyxl, fastapi, uvicorn, qrcode, pillow)
 │   ├── requirements-dev.txt      # Зависимости разработки (pytest, pytest-cov, httpx)
 │   └── .env.example              # Шаблон переменных окружения backend
 ├── frontend/                     # React + Vite + TypeScript
@@ -139,11 +139,53 @@ npm run dev        # поднимает API и фронтенд вместе
 
 ---
 
+## REST API
+
+Полный CRUD по всем сущностям: места хранения, ящики, вещи, корзина, поиск,
+резервная копия. Схемы запросов и ответов — английские snake_case (`id`,
+`name`, `box_id`, `quantity`, `updated_at`…); формат файла данных не меняется.
+Все эндпоинты и модели — интерактивно в `/docs`.
+
+| Метод | Путь | Назначение |
+|--------|------|------------|
+| GET | `/api/health` | Проверка живости API |
+| GET | `/api/stats` | Сводка: ящики, вещи, единицы, места |
+| GET | `/api/locations` | Места хранения (+`box_count`) |
+| POST | `/api/locations` | Создать место (дубликат имени → 409) |
+| DELETE | `/api/locations/{id}` | Убрать место в корзину (ящики остаются) |
+| GET | `/api/boxes` | Ящики (+`location_name`, `item_count`, `unit_count`) |
+| POST | `/api/boxes` | Создать ящик (несуществующее место → 404) |
+| GET | `/api/boxes/{id}` | Ящик с вещами внутри |
+| DELETE | `/api/boxes/{id}` | Убрать ящик в корзину (вещи остаются) |
+| GET | `/api/boxes/{id}/qr` | PNG QR-код со ссылкой на страницу ящика |
+| GET | `/api/items` | Вещи; фильтры `?box_id=`, `?category=` |
+| POST | `/api/items` | Добавить вещь (`quantity` ≥ 1) |
+| PATCH | `/api/items/{id}` | Частичное обновление; `box_id` — перенос, пустой — «без ящика» |
+| POST | `/api/items/{id}/move` | Перенести вещь в другой ящик |
+| DELETE | `/api/items/{id}` | Убрать вещь в корзину |
+| DELETE | `/api/items?ids=a,b` | Массово убрать в корзину (дубликаты пропускаются) |
+| PUT | `/api/items` | Bulk-save таблицы вещей → `{saved: N}` |
+| GET | `/api/search?q=` | Поиск по названию, категории, заметкам, подписи ящика |
+| GET | `/api/categories` | Справочник категорий (из вещей, по алфавиту) |
+| GET | `/api/trash` | Корзина (просроченные вычищаются) → `{entries, purged}` |
+| POST | `/api/trash/{kind}/{id}/restore` | Восстановить; `kind` ∈ `item`/`box`/`location` |
+| DELETE | `/api/trash` | Очистить корзину → `{deleted: N}` |
+| POST | `/api/backup` | Резервная копия файла → `{path}` |
+| POST | `/api/cache/clear` | Сбросить кэш чтений (204) |
+
+Ошибки отдаются как `{"detail": "текст"}`: `400` — нарушение инвариантов
+(пустое название, отрицательное количество), `404` — запись или ящик не
+найдены, `409` — дубликат имени места хранения, `503` — сбой хранилища
+(файл повреждён), `422` — тело запроса не прошло pydantic-валидацию. Тексты
+ошибок — пользовательский контракт, совпадают с прежним приложением.
+
+---
+
 ## Порты и CORS
 
 | Сервис | Адрес | Зачем |
 |--------|-------|-------|
-| Backend API | `http://localhost:8000` | REST (`/api/health`, `/api/stats`) и доки (`/docs`) |
+| Backend API | `http://localhost:8000` | REST API (таблица выше) и доки (`/docs`) |
 | Frontend dev-сервер | `http://localhost:5173` | Страница React, порт фиксирован (strictPort) |
 
 Запросы с фронтенда к API — кросс-доменные (5173 → 8000), поэтому backend
@@ -159,7 +201,7 @@ npm run dev        # поднимает API и фронтенд вместе
 |------------|-------------|--------------|----------|
 | `DATA_FILE` | нет | `/data/inventory.xlsx` | Путь к файлу-хранилищу (backend) |
 | `APP_TITLE` | нет | `📦 Домашний склад` | Заголовок приложения |
-| `BASE_URL` | нет | — | Зарезервировано для QR-кодов ящиков (итерация 2) |
+| `BASE_URL` | нет | — | Базовый URL для QR-кодов ящиков; без него — адрес запроса |
 | `CORS_ORIGINS` | нет | `http://localhost:5173` | Разрешённые источники фронтенда, через запятую |
 | `VITE_API_URL` | нет | `http://localhost:8000` | Адрес API для фронтенда (frontend/.env) |
 
@@ -179,8 +221,8 @@ npm run dev        # поднимает API и фронтенд вместе
   файл и запустите снова.
 
 Файл открывается в Excel, LibreOffice и Google Таблицах — можно посмотреть
-глазами, распечатать или отдать кому-то. Резервная копия делается методом
-`backup_file()` сервиса (копия с отметкой времени рядом с файлом).
+глазами, распечатать или отдать кому-то. Резервная копия — `POST /api/backup`
+(копия с отметкой времени рядом с файлом).
 
 ---
 
@@ -216,7 +258,12 @@ backend/tests/
 ├── test_service.py            # сценарии: перенос, удаление, поиск, кэш
 ├── test_trash.py              # корзина: expiry, восстановление, detach/reattach
 ├── test_config_context.py     # конфигурация и сборка сервиса
-└── test_api.py                # REST API: health, stats, ошибка хранилища → 503
+├── test_api.py                # REST API: health, stats, ошибка хранилища → 503
+├── test_api_locations.py      # API мест: список со счётчиками, 409 дубликат, корзина
+├── test_api_boxes.py          # API ящиков: счётчики, деталь, 404, detach вещей
+├── test_api_items.py          # API вещей: CRUD, PATCH, bulk, поиск, категории
+├── test_api_trash.py          # API корзины: restore, purge, бэкап, кэш
+└── test_api_qr.py             # QR-коды ящиков: PNG, 404
 ```
 
 При доработках держите направление зависимостей:
@@ -241,10 +288,12 @@ backend/tests/
 
 ## Дорожная карта
 
-- **Итерация 2**: полный CRUD API (ящики/вещи/места/корзина/поиск/бэкап),
-  перенос всех страниц React, дизайн calm dashboard.
-- **Дальше**: QR-коды ящиков как `GET /api/boxes/{id}/qr`, Docker/CI для
-  нового стека.
+- **Итерация 2 (готово)**: полный CRUD REST API — места, ящики, вещи,
+  корзина, поиск, bulk-операции, QR-коды (`GET /api/boxes/{id}/qr`),
+  резервная копия.
+- **Итерация 3**: перенос всех страниц React на REST API, дизайн calm
+  dashboard.
+- **Дальше**: Docker/CI для нового стека.
 
 ---
 

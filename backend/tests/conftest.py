@@ -9,6 +9,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
+
+import app.context as context
+from app.config import get_config
 from openpyxl import Workbook
 
 SHEET_LOCATIONS = "Места"
@@ -101,3 +105,21 @@ def read_sheet(path: Path, title: str) -> list[list]:
 def data_file(tmp_path: Path) -> Path:
     """Путь к файлу-хранилищу во временном каталоге."""
     return tmp_path / "inventory.xlsx"
+
+
+@pytest.fixture
+def client(monkeypatch, data_file: Path) -> TestClient:
+    """TestClient поверх приложения, нацеленного на tmp-фикстуру данных.
+
+    Перед прогоном сбрасываются конфиг-кэш и синглтон сервиса, чтобы API
+    прочитал tmp-фикстуру, а не данные соседних тестов.
+    """
+    from app.api.main import app
+
+    monkeypatch.setenv("DATA_FILE", str(data_file))
+    get_config.cache_clear()
+    context._service = None
+    yield TestClient(app)
+    # Чужие тесты не должны увидеть наш синглтон и закэшированный конфиг.
+    context._service = None
+    get_config.cache_clear()

@@ -21,7 +21,7 @@ from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.workbook.workbook import Workbook as WorkbookType
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.domain.errors import StorageError
+from app.domain.errors import ConflictError, NotFoundError, StorageError
 from app.domain.fields import now_str
 from app.domain.ids import new_id
 from app.domain.trash import (
@@ -211,7 +211,7 @@ class ExcelRepository:
                     found_row = row_idx
                     break
             if found_row is None:
-                raise StorageError(
+                raise NotFoundError(
                     "Запись не найдена в корзине (возможно, уже восстановлена)."
                 )
 
@@ -328,7 +328,7 @@ class ExcelRepository:
             name = name.strip()
             for row in ws.iter_rows(min_row=2, values_only=True):
                 if row and row[1] is not None and str(row[1]).strip().lower() == name.lower():
-                    raise StorageError(f"Место хранения «{name}» уже существует.")
+                    raise ConflictError(f"Место хранения «{name}» уже существует.")
             loc_id = new_id()
             ws.append([loc_id, name, description.strip(), now_str()])
             self._save_workbook(wb)
@@ -347,7 +347,7 @@ class ExcelRepository:
 
             row = schema.row_index(loc_ws, location_id)
             if row is None:
-                raise StorageError(f"Место хранения с ID {location_id} не найдено.")
+                raise NotFoundError(f"Место хранения с ID {location_id} не найдено.")
 
             record = self._sheet_record(loc_ws, row, LOCATION_HEADERS)
             self._append_trash(wb, TRASH_KIND_LOCATION, record, parent_id="")
@@ -373,7 +373,7 @@ class ExcelRepository:
             if location_id:
                 loc_ws, _ = ensure_worksheet(wb, SHEET_LOCATIONS, LOCATION_HEADERS)
                 if schema.row_index(loc_ws, location_id) is None:
-                    raise StorageError(f"Место хранения с ID {location_id} не найдено.")
+                    raise NotFoundError(f"Место хранения с ID {location_id} не найдено.")
             ws, _ = ensure_worksheet(wb, SHEET_BOXES, BOX_HEADERS)
             box_id = new_id()
             ws.append([box_id, name.strip(), location_id, description.strip(), now_str()])
@@ -393,7 +393,7 @@ class ExcelRepository:
 
             row = schema.row_index(boxes_ws, box_id)
             if row is None:
-                raise StorageError(f"Ящик с ID {box_id} не найден.")
+                raise NotFoundError(f"Ящик с ID {box_id} не найден.")
 
             record = self._sheet_record(boxes_ws, row, BOX_HEADERS)
             parent_id = str(record.get("Место_ID", "") or "")
@@ -437,7 +437,7 @@ class ExcelRepository:
             ws, _ = ensure_worksheet(wb, SHEET_ITEMS, ITEM_HEADERS)
             row = schema.row_index(ws, item_id)
             if row is None:
-                raise StorageError(f"Вещь с ID {item_id} не найдена (возможно, удалена).")
+                raise NotFoundError(f"Вещь с ID {item_id} не найдена (возможно, удалена).")
 
             for column, value in fields.items():
                 ws.cell(row=row, column=ITEM_HEADERS.index(column) + 1, value=value)
@@ -451,7 +451,7 @@ class ExcelRepository:
             ws, _ = ensure_worksheet(wb, SHEET_ITEMS, ITEM_HEADERS)
             row = schema.row_index(ws, item_id)
             if row is None:
-                raise StorageError(f"Вещь с ID {item_id} не найдена (возможно, уже удалена).")
+                raise NotFoundError(f"Вещь с ID {item_id} не найдена (возможно, уже удалена).")
 
             record = self._sheet_record(ws, row, ITEM_HEADERS)
             parent_id = str(record.get("Ящик_ID", "") or "")

@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 from datetime import datetime
 
-from app.domain.errors import StorageError, ValidationError
+from app.domain.errors import NotFoundError, StorageError, ValidationError
 from app.domain.fields import ITEM_FIELDS
 from app.domain.trash import DeletedEntry
 from app.services.caching import CachedRepository
@@ -74,7 +74,7 @@ def test_move_item_to_existing_box(service):
 def test_move_item_to_unknown_box_fails(service):
     box1 = service.create_box("Ящик 1", "", "")
     item_id = service.create_item("Отвёртка", box1, 3, "", "")
-    with pytest.raises(ValidationError, match="Ящик с ID nope не найден"):
+    with pytest.raises(NotFoundError, match="Ящик с ID nope не найден"):
         service.move_item(item_id, "nope")
     # Вещь осталась на месте.
     assert service.load_items().iloc[0]["Ящик_ID"] == box1

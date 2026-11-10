@@ -1,34 +1,14 @@
 """Тесты REST API: health, сводная статистика, ошибка хранилища → 503.
 
-TestClient (на httpx) гоняет реальный FastAPI-стек без сетевого порта.
-Перед прогоном сбрасываются конфиг-кэш и синглтон сервиса, чтобы API
-прочитал tmp-фикстуру, а не данные соседних тестов.
+TestClient (на httpx) гоняет реальный FastAPI-стек без сетевого порта;
+фикстура ``client`` — общая, живёт в conftest.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
-from fastapi.testclient import TestClient
 
-import app.context as context
-from app.config import get_config
 from conftest import make_new_workbook
-
-
-@pytest.fixture
-def client(monkeypatch, data_file: Path) -> TestClient:
-    """TestClient поверх приложения, нацеленного на tmp-фикстуру данных."""
-    from app.api.main import app
-
-    monkeypatch.setenv("DATA_FILE", str(data_file))
-    get_config.cache_clear()
-    context._service = None
-    yield TestClient(app)
-    # Чужие тесты не должны увидеть наш синглтон и закэшированный конфиг.
-    context._service = None
-    get_config.cache_clear()
 
 
 def test_health_returns_ok(client):

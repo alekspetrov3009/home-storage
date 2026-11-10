@@ -13,3 +13,11 @@ class StorageError(RuntimeError):
 
 class ValidationError(StorageError):
     """Нарушение инвариантов доменной модели (пустое имя, плохое количество)."""
+
+
+class NotFoundError(StorageError):
+    """Искомая запись отсутствует в хранилище (в API — 404)."""
+
+
+class ConflictError(StorageError):
+    """Запись конфликтует с уже существующей (дубликат имени; в API — 409)."""
