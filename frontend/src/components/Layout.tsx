@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { createBackup } from "../api";
 import { useAuth } from "../auth";
@@ -20,6 +20,8 @@ const ADMIN_NAV = [
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const [params] = useSearchParams();
   const [query, setQuery] = useState(params.get("q") ?? "");
   const navigate = useNavigate();
@@ -31,7 +33,27 @@ export default function Layout() {
   useEffect(() => {
     setQuery(params.get("q") ?? "");
     setSidebarOpen(false);
+    setUserMenuOpen(false);
   }, [params, location.pathname]);
+
+  // Клик мимо меню пользователя или Esc — закрываем меню.
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setUserMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [userMenuOpen]);
 
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();
@@ -103,21 +125,6 @@ export default function Layout() {
             ))}
         </nav>
         <div className="sidebar-footer">
-          <div className="user-box">
-            <span className="user-login" title={user?.login}>
-              {user?.login ?? ""}
-            </span>
-            <span className="user-role dim">
-              {isAdmin ? "администратор" : "просмотр"}
-            </span>
-          </div>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => void signOut()}
-          >
-            🚪 Выйти
-          </button>
           <button type="button" className="btn btn-ghost" onClick={toggle}>
             {theme === "dark" ? "☀️ Светлая тема" : "🌙 Тёмная тема"}
           </button>
@@ -168,6 +175,46 @@ export default function Layout() {
                 ＋<span className="add-text">&nbsp;Добавить</span>
               </NavLink>
             )}
+            <div className="user-menu" ref={userMenuRef}>
+              <button
+                type="button"
+                className={`user-menu-trigger${userMenuOpen ? " open" : ""}`}
+                onClick={() => setUserMenuOpen((open) => !open)}
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+                title={user?.login}
+              >
+                <span className="user-avatar" aria-hidden="true">
+                  {(user?.login ?? "?").slice(0, 1).toUpperCase()}
+                </span>
+                <span className="user-menu-name">{user?.login ?? ""}</span>
+                <span className="user-menu-caret" aria-hidden="true">
+                  ▾
+                </span>
+              </button>
+              {userMenuOpen && (
+                <div className="user-menu-pop" role="menu" aria-label="Меню пользователя">
+                  <div className="user-menu-head">
+                    <span className="user-menu-login">{user?.login ?? ""}</span>
+                    <span className="user-menu-role">
+                      {isAdmin ? "администратор" : "просмотр"}
+                    </span>
+                  </div>
+                  <p className="user-menu-perms">
+                    {isAdmin
+                      ? "Полный доступ: создание и правка вещей, ящиков и мест, управление пользователями."
+                      : "Только чтение: просмотр склада без возможности изменений."}
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-ghost user-menu-logout"
+                    onClick={() => void signOut()}
+                  >
+                    🚪 Выйти
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         <main className="page">

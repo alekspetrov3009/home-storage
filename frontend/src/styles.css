@@ -1310,6 +1310,10 @@ a:hover {
     display: none;
   }
 
+  .user-menu-trigger .user-menu-name {
+    display: none;
+  }
+
   .undo-bar {
     top: calc(var(--topbar-h) + 8px);
     width: calc(100vw - 24px);
@@ -1396,26 +1400,109 @@ a:hover {
   }
 }
 
-/* Блок текущего пользователя в подвале sidebar. */
-.user-box {
+/* Блок пользователя в правом верхнем углу шапки: аватар + логин,
+   выпадающее меню с ролью, правами и выходом. */
+.user-menu {
+  position: relative;
+  margin-left: 2px;
+}
+
+.user-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.user-menu-trigger:hover,
+.user-menu-trigger:focus-visible,
+.user-menu-trigger.open {
+  background: var(--surface2);
+  border-color: var(--border);
+}
+
+.user-avatar {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.user-menu-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-menu-caret {
+  color: var(--muted);
+  font-size: 0.7rem;
+  transition: transform 0.15s ease;
+}
+
+.user-menu-trigger.open .user-menu-caret {
+  transform: rotate(180deg);
+}
+
+.user-menu-pop {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 80;
+  width: min(280px, calc(100vw - 24px));
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hover);
+  animation: fade-in 0.15s ease-out;
+}
+
+.user-menu-head {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface2);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
 }
 
-.user-login {
+.user-menu-login {
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.user-role {
+.user-menu-role {
   font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.user-menu-perms {
+  margin: 10px 0 12px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.user-menu-logout {
+  width: 100%;
 }
 
 /* Таблица пользователей (страница /users, только администратор). */
