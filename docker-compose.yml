@@ -1,0 +1,22 @@
+# Домашний склад: REST API (FastAPI) + интерфейс (nginx со статикой React).
+# Запуск: docker compose up -d --build   →   http://localhost:8080
+# Файл данных живёт на хосте в ./data (том /data в контейнере backend).
+services:
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DATA_FILE: /data/inventory.xlsx
+      APP_TITLE: ${APP_TITLE:-📦 Домашний склад}
+      BASE_URL: ${BASE_URL:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    volumes:
+      - ./data:/data
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-8080}:80"

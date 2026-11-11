@@ -809,18 +809,36 @@ class ExcelRepository:
                 raise NotFoundError(f"Пользователь с ID {user_id} не найден.")
             login = str(ws.cell(row=row, column=2).value or "")
             ws.delete_rows(row)
-
-            if SHEET_SESSIONS in wb.sheetnames:
-                sessions_ws = wb[SHEET_SESSIONS]
-                # Снизу вверх: удаление строки сдвигает индексы последующих.
-                user_column = SESSION_HEADERS.index("ID_Пользователя") + 1
-                for session_row in range(sessions_ws.max_row, 1, -1):
-                    cell = sessions_ws.cell(row=session_row, column=user_column)
-                    if cell.value is not None and str(cell.value) == str(user_id):
-                        sessions_ws.delete_rows(session_row)
-
+            self._purge_sessions(wb, user_id)
             self._save_workbook(wb)
             return login
+
+    @staticmethod
+    def _purge_sessions(wb: WorkbookType, user_id: str, except_token: str = "") -> None:
+        """Удаляет все сессии пользователя на листе «Сессии», кроме
+        except_token (снизу вверх: удаление строки сдвигает индексы
+        последующих)."""
+        if SHEET_SESSIONS not in wb.sheetnames:
+            return
+        sessions_ws = wb[SHEET_SESSIONS]
+        token_column = SESSION_HEADERS.index("Токен") + 1
+        user_column = SESSION_HEADERS.index("ID_Пользователя") + 1
+        for session_row in range(sessions_ws.max_row, 1, -1):
+            if except_token:
+                token_cell = sessions_ws.cell(row=session_row, column=token_column)
+                if token_cell.value is not None and str(token_cell.value) == str(except_token):
+                    continue
+            cell = sessions_ws.cell(row=session_row, column=user_column)
+            if cell.value is not None and str(cell.value) == str(user_id):
+                sessions_ws.delete_rows(session_row)
+
+    def delete_user_sessions(self, user_id: str, except_token: str = "") -> None:
+        """Удаляет сессии пользователя, кроме except_token (текущая остаётся
+        активной). Пустой except_token — закрыть все сессии."""
+        with self._lock:
+            wb = self._load_workbook()
+            self._purge_sessions(wb, user_id, except_token)
+            self._save_workbook(wb)
 
     def add_session(self, token: str, user_id: str) -> None:
         """Создаёт сессию (токен-cookie → пользователь) на листе «Сессии»."""

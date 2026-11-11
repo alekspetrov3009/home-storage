@@ -12,7 +12,6 @@ import Locations from "./pages/Locations";
 import Trash from "./pages/Trash";
 import Search from "./pages/Search";
 import Settings from "./pages/Settings";
-import Users from "./pages/Users";
 import Login from "./pages/Login";
 
 /* Страницы и данные склада закрыты на сервере; эти обёртки лишь вовремя
@@ -72,19 +71,17 @@ export default function App() {
         <Route path="locations" element={<Locations />} />
         <Route path="trash" element={<Trash />} />
         <Route path="search" element={<Search />} />
-        <Route
-          path="settings"
-          element={
-            <RequireAdmin>
-              <Settings />
-            </RequireAdmin>
-          }
-        />
+        {/* Настройки доступны любой роли: вкладка «Пароль» — всем,
+            «Категории» и «Пользователи» скрываются в интерфейсе и закрыты
+            на сервере (403) — проверка роли не доверяется фронту. */}
+        <Route path="settings" element={<Settings />} />
+        {/* Пользователи переехали отдельной вкладкой в настройки; старый
+            адрес ведёт туда же (права прежние — только администратор). */}
         <Route
           path="users"
           element={
             <RequireAdmin>
-              <Users />
+              <Navigate to="/settings?tab=users" replace />
             </RequireAdmin>
           }
         />

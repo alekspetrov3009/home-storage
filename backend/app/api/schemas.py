@@ -258,6 +258,13 @@ class LoginIn(_Input):
     password: str
 
 
+class ChangePasswordIn(_Input):
+    """Смена пароля текущим пользователем: текущий пароль — для подтверждения."""
+
+    current_password: str
+    new_password: str
+
+
 class UserCreate(_Input):
     """Создание учётной записи администратором; ``role`` — слаг admin/viewer."""
 

@@ -305,6 +305,17 @@ export const logout = () => request<void>("/api/auth/logout", { method: "POST" }
 
 export const fetchMe = () => request<User>("/api/auth/me");
 
+/* Смена пароля: сервер закрывает остальные сессии пользователя,
+   текущая остаётся активной, в ответе — обновлённый пользователь. */
+export const changePassword = (currentPassword: string, newPassword: string) =>
+  request<User>(
+    "/api/auth/change-password",
+    jsonInit("POST", {
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  );
+
 /* ------------------- Управление пользователями (админ) ------------------- */
 
 export const fetchUsers = () => request<User[]>("/api/users");

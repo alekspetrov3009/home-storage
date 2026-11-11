@@ -110,6 +110,34 @@ class AuthService:
             )
         return self._user_from_row(row)
 
+    def change_password(
+        self, user_id: str, current_password: str, new_password: str, except_token: str = ""
+    ) -> User:
+        """Смена пароля самим пользователем: текущий пароль подтверждается,
+        новый хешируется (PBKDF2, как при регистрации). Возвращает пользователя.
+
+        После смены закрываются все сессии пользователя, кроме текущей
+        (except_token): другие устройства разлогиниваются, здесь можно
+        продолжить работу. Тексты ошибок — пользовательский контракт
+        (показываются в форме смены пароля).
+        """
+        users = self._users()
+        match = users[users["ID"].astype(str) == str(user_id)]
+        if match.empty:
+            raise NotFoundError(f"Пользователь с ID {user_id} не найден.")
+        row = match.iloc[0]
+        stored_hash = str(row.get("Хеш_Пароля", "") or "")
+        current_password = str(current_password or "")
+        if not stored_hash or not verify_password(current_password, stored_hash):
+            raise ValidationError("Неверный текущий пароль.")
+        new_password = str(new_password or "")
+        if new_password == current_password:
+            raise ValidationError("Новый пароль совпадает с текущим.")
+        validate_password(new_password)
+        self._repo.update_user(user_id, {"Хеш_Пароля": hash_password(new_password)})
+        self._repo.delete_user_sessions(user_id, except_token)
+        return self._user_by_id(user_id)
+
     # ------------------------------------------------------------------ #
     # Сессии (токен-cookie, живут до выхода или удаления учётной записи)
     # ------------------------------------------------------------------ #

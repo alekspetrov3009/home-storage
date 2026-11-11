@@ -13,11 +13,6 @@ const NAV = [
   { to: "/trash", icon: "🗑", label: "Корзина" },
 ];
 
-const ADMIN_NAV = [
-  { to: "/settings", icon: "⚙️", label: "Настройки" },
-  { to: "/users", icon: "👥", label: "Пользователи" },
-];
-
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -110,19 +105,6 @@ export default function Layout() {
               {item.label}
             </NavLink>
           ))}
-          {isAdmin &&
-            ADMIN_NAV.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
-              >
-                <span className="nav-icon" aria-hidden="true">
-                  {item.icon}
-                </span>
-                {item.label}
-              </NavLink>
-            ))}
         </nav>
         <div className="sidebar-footer">
           <button type="button" className="btn btn-ghost" onClick={toggle}>
@@ -159,18 +141,6 @@ export default function Layout() {
           </form>
           <div className="topbar-actions">
             {isAdmin && (
-              <NavLink
-                to="/settings"
-                className={({ isActive }) =>
-                  `btn btn-ghost${isActive ? " topbar-settings-active" : ""}`
-                }
-                aria-label="Настройки"
-                title="Настройки"
-              >
-                ⚙️
-              </NavLink>
-            )}
-            {isAdmin && (
               <NavLink to={addTarget} className="btn btn-primary">
                 ＋<span className="add-text">&nbsp;Добавить</span>
               </NavLink>
@@ -205,6 +175,17 @@ export default function Layout() {
                       ? "Полный доступ: создание и правка вещей, ящиков и мест, управление пользователями."
                       : "Только чтение: просмотр склада без возможности изменений."}
                   </p>
+                  {/* Настройки — любая роль: своя вкладка «Пароль» есть у всех. */}
+                  <button
+                    type="button"
+                    className="btn btn-ghost user-menu-settings"
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      navigate("/settings");
+                    }}
+                  >
+                    ⚙️ Настройки
+                  </button>
                   <button
                     type="button"
                     className="btn btn-ghost user-menu-logout"

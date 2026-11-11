@@ -138,6 +138,9 @@ class CachedRepository:
     def delete_session(self, token: str) -> None:
         self._repo.delete_session(token)
 
+    def delete_user_sessions(self, user_id: str, except_token: str = "") -> None:
+        self._repo.delete_user_sessions(user_id, except_token)
+
     def find_session_user(self, token: str) -> dict[str, Any] | None:
         return self._repo.find_session_user(token)
 

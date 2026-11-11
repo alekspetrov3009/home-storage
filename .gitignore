@@ -30,6 +30,9 @@ logs/
 *.xlsx
 *.xlsx.*.backup.xlsx
 
+# ---- Docker ----
+docker-compose.override.yml
+
 # ---- Редакторы и ОС ----
 .idea/
 .vscode/

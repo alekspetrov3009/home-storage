@@ -173,6 +173,96 @@ def test_me_without_session_returns_401(fresh_env):
 
 
 # --------------------------------------------------------------------------- #
+# Смена пароля текущим пользователем
+# --------------------------------------------------------------------------- #
+
+
+def test_change_password_closes_other_sessions(client, data_file):
+    from fastapi.testclient import TestClient
+    from conftest import read_sheet
+
+    # Вторая параллельная сессия того же пользователя.
+    other = TestClient(client.app)
+    assert _login(other, "admin", "admin123").status_code == 200
+    assert other.get("/api/auth/me").status_code == 200
+
+    response = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "admin123", "new_password": "новый456"},
+    )
+    assert response.status_code == 200
+    assert response.json()["login"] == "admin"
+
+    # Текущая сессия живёт, остальные сессии пользователя закрыты.
+    assert client.get("/api/auth/me").status_code == 200
+    assert other.get("/api/auth/me").status_code == 401
+
+    # В файле — новый самоописывающий хеш, не plain-текст и не старый хеш.
+    rows = read_sheet(data_file, "Пользователи")
+    header = rows[0]
+    stored = {row[header.index("Логин")]: row[header.index("Хеш_Пароля")] for row in rows[1:]}
+    new_hash = str(stored["admin"])
+    assert new_hash.startswith("pbkdf2_sha256$")
+    assert "новый456" not in new_hash and "admin123" not in new_hash
+
+    # Старый пароль больше не подходит, новый работает.
+    assert _login(other, "admin", "admin123").status_code == 401
+    assert _login(other, "admin", "новый456").status_code == 200
+
+
+def test_change_password_wrong_current_400(client):
+    response = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "wrong-pass", "new_password": "новый456"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Неверный текущий пароль."
+
+
+def test_change_password_validates_new_password(client):
+    short = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "admin123", "new_password": "123"},
+    )
+    assert short.status_code == 400
+    assert "от 6 до 128" in short.json()["detail"]
+
+    same = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "admin123", "new_password": "admin123"},
+    )
+    assert same.status_code == 400
+    assert same.json()["detail"] == "Новый пароль совпадает с текущим."
+
+
+def test_change_password_requires_login(data_file):
+    from fastapi.testclient import TestClient
+    from app.api.main import app
+
+    make_new_workbook(data_file)
+    client = TestClient(app)
+    response = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "x", "new_password": "y"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Требуется вход в систему."
+
+
+def test_viewer_can_change_own_password(client):
+    assert _register(client, login="plain", password="parol123").status_code == 201
+    response = client.post(
+        "/api/auth/change-password",
+        json={"current_password": "parol123", "new_password": "новый456"},
+    )
+    assert response.status_code == 200
+    # Текущая сессия живёт, вход со старым паролем закрыт.
+    assert client.get("/api/auth/me").status_code == 200
+    assert _login(client, "plain", "parol123").status_code == 401
+    assert _login(client, "plain", "новый456").status_code == 200
+
+
+# --------------------------------------------------------------------------- #
 # Неавторизованный доступ к данным склада закрыт
 # --------------------------------------------------------------------------- #
 
