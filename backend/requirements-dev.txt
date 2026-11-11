@@ -1,0 +1,6 @@
+# Зависимости для разработки и тестов.
+# Установка: pip install -r requirements-dev.txt
+pytest==9.2.0
+pytest-cov==7.0.0
+# TestClient (fastapi.testclient) построен на httpx.
+httpx==0.28.1

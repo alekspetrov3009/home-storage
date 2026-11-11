@@ -1,0 +1,352 @@
+/* REST-клиент: типы повторяют схемы backend/app/api/schemas.py (snake_case),
+   ошибки API — {"detail": "текст"} и показываются пользователю как есть.
+   Сессия живёт в HttpOnly-cookie: все запросы ходят с credentials: "include". */
+
+export interface Stats {
+  boxes: number;
+  items: number;
+  units: number;
+  locations: number;
+}
+
+export interface Health {
+  status: string;
+  registration_open: boolean;
+}
+
+export type UserRole = "admin" | "viewer";
+
+export interface User {
+  id: string;
+  login: string;
+  role: UserRole;
+  is_admin: boolean;
+  blocked: boolean;
+  created_at: string;
+}
+
+export interface Location {
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  box_count: number;
+}
+
+export interface Box {
+  id: string;
+  name: string;
+  location_id: string;
+  location_name: string | null;
+  description: string;
+  created_at: string;
+  item_count: number;
+  unit_count: number;
+  color: string;
+}
+
+export interface BoxDetail extends Box {
+  items: Item[];
+}
+
+export interface Item {
+  id: string;
+  name: string;
+  box_id: string;
+  box_label: string | null;
+  quantity: number;
+  category: string;
+  notes: string;
+  updated_at: string;
+}
+
+export type TrashKind = "item" | "box" | "location";
+
+export interface TrashEntry {
+  id: string;
+  kind: TrashKind;
+  name: string;
+  parent_id: string;
+  deleted_at: string;
+  data: Record<string, unknown>;
+}
+
+export interface TrashResponse {
+  entries: TrashEntry[];
+  purged: number;
+}
+
+export interface ItemSaveRow {
+  id: string;
+  name: string;
+  box_id: string;
+  quantity: string | number;
+  category: string;
+  notes: string;
+}
+
+export interface CategoryMutationResult {
+  name: string;
+  items_updated: number;
+}
+
+export const API_URL: string = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+export function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/* Событие: сервер ответил 401 вне страницы входа — провайдер авторизации
+   сбрасывает пользователя, роутер перенаправляет на форму входа. */
+export const UNAUTHORIZED_EVENT = "home-storage:unauthorized";
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      credentials: "include",
+      ...init,
+    });
+  } catch {
+    throw new ApiError(
+      0,
+      `Нет связи с API (${API_URL}). Проверьте, что backend запущен.`,
+    );
+  }
+  if (!response.ok) {
+    if (response.status === 401 && !path.startsWith("/api/auth/")) {
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+    }
+    let detail = `API вернул статус ${response.status}`;
+    try {
+      const body: unknown = await response.json();
+      const detailField = (body as { detail?: unknown } | null)?.detail;
+      if (typeof detailField === "string" && detailField) detail = detailField;
+    } catch {
+      /* тело не JSON — остаётся текст со статусом */
+    }
+    throw new ApiError(response.status, detail);
+  }
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+function jsonInit(method: string, body: unknown): RequestInit {
+  return {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  };
+}
+
+/* ------------------------------ Чтение ----------------------------------- */
+
+export const fetchHealth = () => request<Health>("/api/health");
+
+export const fetchStats = () => request<Stats>("/api/stats");
+
+export const fetchLocations = () => request<Location[]>("/api/locations");
+
+export const fetchBoxes = () => request<Box[]>("/api/boxes");
+
+export const fetchBox = (id: string) =>
+  request<BoxDetail>(`/api/boxes/${encodeURIComponent(id)}`);
+
+export const fetchItems = (filters?: { box_id?: string; category?: string }) => {
+  const params = new URLSearchParams();
+  if (filters?.box_id) params.set("box_id", filters.box_id);
+  if (filters?.category) params.set("category", filters.category);
+  const qs = params.toString();
+  return request<Item[]>(`/api/items${qs ? `?${qs}` : ""}`);
+};
+
+export const fetchItem = (id: string) =>
+  request<Item>(`/api/items/${encodeURIComponent(id)}`);
+
+export const fetchCategories = () => request<string[]>("/api/categories");
+
+export const fetchTrash = () => request<TrashResponse>("/api/trash");
+
+export const searchItems = (q: string) =>
+  // Сервер сам приводит и запрос, и стог сена к нижнему регистру;
+  // здесь остаётся только обрезка пробелов.
+  request<Item[]>(`/api/search?q=${encodeURIComponent(q.trim())}`);
+
+/* ----------------------------- Мутации ----------------------------------- */
+
+export interface LocationInput {
+  name: string;
+  description: string;
+}
+
+export const createLocation = (payload: LocationInput) =>
+  request<Location>("/api/locations", jsonInit("POST", payload));
+
+export interface LocationPatch {
+  name?: string;
+  description?: string;
+}
+
+export const updateLocation = (id: string, payload: LocationPatch) =>
+  request<Location>(`/api/locations/${encodeURIComponent(id)}`, jsonInit("PATCH", payload));
+
+export const deleteLocation = (id: string) =>
+  request<TrashEntry>(`/api/locations/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+export interface BoxInput {
+  name: string;
+  location_id: string;
+  description: string;
+}
+
+export const createBox = (payload: BoxInput) =>
+  request<Box>("/api/boxes", jsonInit("POST", payload));
+
+export interface BoxPatch {
+  name?: string;
+  location_id?: string;
+  description?: string;
+}
+
+export const updateBox = (id: string, payload: BoxPatch) =>
+  request<BoxDetail>(`/api/boxes/${encodeURIComponent(id)}`, jsonInit("PATCH", payload));
+
+export const deleteBox = (id: string) =>
+  request<TrashEntry>(`/api/boxes/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+export interface ItemInput {
+  name: string;
+  box_id: string;
+  quantity: number;
+  category: string;
+  notes: string;
+}
+
+export const createItem = (payload: ItemInput) =>
+  request<Item>("/api/items", jsonInit("POST", payload));
+
+export interface ItemPatch {
+  name?: string;
+  quantity?: number;
+  category?: string;
+  notes?: string;
+  box_id?: string;
+}
+
+export const updateItem = (id: string, payload: ItemPatch) =>
+  request<Item>(`/api/items/${encodeURIComponent(id)}`, jsonInit("PATCH", payload));
+
+export const moveItem = (id: string, boxId: string) =>
+  request<Item>(`/api/items/${encodeURIComponent(id)}/move`, jsonInit("POST", { box_id: boxId }));
+
+export const deleteItem = (id: string) =>
+  request<TrashEntry>(`/api/items/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+export const deleteItems = (ids: string[]) =>
+  request<TrashEntry[]>(
+    `/api/items?ids=${encodeURIComponent(ids.join(","))}`,
+    { method: "DELETE" },
+  );
+
+export const saveItemsTable = (rows: ItemSaveRow[]) =>
+  request<{ saved: number }>("/api/items", jsonInit("PUT", { items: rows }));
+
+/* Категории адресуются именем в теле/параметре (не в пути):
+   названия могут содержать «/» и любые символы. */
+
+export const createCategory = (name: string) =>
+  request<CategoryMutationResult>("/api/categories", jsonInit("POST", { name }));
+
+export const renameCategory = (name: string, newName: string) =>
+  request<CategoryMutationResult>(
+    "/api/categories",
+    jsonInit("PATCH", { name, new_name: newName }),
+  );
+
+export const deleteCategory = (name: string) =>
+  request<CategoryMutationResult>(
+    `/api/categories?name=${encodeURIComponent(name)}`,
+    { method: "DELETE" },
+  );
+
+export const restoreFromTrash = (kind: TrashKind, id: string) =>
+  request<{ name: string }>(
+    `/api/trash/${kind}/${encodeURIComponent(id)}/restore`,
+    { method: "POST" },
+  );
+
+export const clearTrash = () =>
+  request<{ deleted: number }>("/api/trash", { method: "DELETE" });
+
+export const createBackup = () =>
+  request<{ path: string }>("/api/backup", { method: "POST" });
+
+/* --------------------------- Авторизация --------------------------------- */
+
+export const register = (login: string, password: string) =>
+  request<User>("/api/auth/register", jsonInit("POST", { login, password }));
+
+export const login = (login: string, password: string) =>
+  request<User>("/api/auth/login", jsonInit("POST", { login, password }));
+
+export const logout = () => request<void>("/api/auth/logout", { method: "POST" });
+
+export const fetchMe = () => request<User>("/api/auth/me");
+
+/* Смена пароля: сервер закрывает остальные сессии пользователя,
+   текущая остаётся активной, в ответе — обновлённый пользователь. */
+export const changePassword = (currentPassword: string, newPassword: string) =>
+  request<User>(
+    "/api/auth/change-password",
+    jsonInit("POST", {
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  );
+
+/* ------------------- Управление пользователями (админ) ------------------- */
+
+export const fetchUsers = () => request<User[]>("/api/users");
+
+export interface UserInput {
+  login: string;
+  password: string;
+  role: UserRole;
+}
+
+export const createUser = (payload: UserInput) =>
+  request<User>("/api/users", jsonInit("POST", payload));
+
+export interface UserPatch {
+  login?: string;
+  password?: string;
+  role?: UserRole;
+  blocked?: boolean;
+}
+
+export const updateUser = (id: string, payload: UserPatch) =>
+  request<User>(`/api/users/${encodeURIComponent(id)}`, jsonInit("PATCH", payload));
+
+export const deleteUser = (id: string) =>
+  request<void>(`/api/users/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+/* --------------------------- Формат данных ------------------------------- */
+
+/* Даты backend — «YYYY-MM-DD HH:MM:SS» (app.domain.fields.now_str). */
+
+export function formatDate(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2})(?::\d{2})?$/.exec(value);
+  if (!match) return value;
+  const [, y, m, d, time] = match;
+  return `${d}.${m}.${y} ${time}`;
+}
