@@ -150,6 +150,8 @@ export default function ItemsTable({ readOnly = false }: { readOnly?: boolean })
   const [nameFilter, setNameFilter] = useState("");
   const [notesFilter, setNotesFilter] = useState("");
 
+  const noItems = !items.data || items.data.length === 0;
+
   useEffect(() => {
     if (items.data) setRows(items.data.map(toEditRow));
   }, [items.data]);
@@ -355,20 +357,22 @@ export default function ItemsTable({ readOnly = false }: { readOnly?: boolean })
   return (
     <>
       <div className="toolbar">
-        <select
-          className="select toolbar-select"
-          value={locationFilter}
-          onChange={(event) => setLocationFilter(event.target.value)}
-          aria-label="Место хранения"
-        >
-          <option value="">Все места</option>
-          {(locations.data ?? []).map((location) => (
-            <option key={location.id} value={location.id}>
-              {location.name}
-            </option>
-          ))}
-          <option value={NO_LOCATION}>— без места —</option>
-        </select>
+        {!noItems && (
+          <select
+            className="select toolbar-select"
+            value={locationFilter}
+            onChange={(event) => setLocationFilter(event.target.value)}
+            aria-label="Место хранения"
+          >
+            <option value="">Все места</option>
+            {(locations.data ?? []).map((location) => (
+              <option key={location.id} value={location.id}>
+                {location.name}
+              </option>
+            ))}
+            <option value={NO_LOCATION}>— без места —</option>
+          </select>
+        )}
         {!readOnly && (
           <button type="button" className="btn btn-outline" onClick={addRow}>
             ＋ Добавить строку
@@ -417,65 +421,67 @@ export default function ItemsTable({ readOnly = false }: { readOnly?: boolean })
               <th>Заметки</th>
               <th className="cell-updated">Обновлён</th>
             </tr>
-            <tr className="filter-row">
-              {!readOnly && <th className="cell-check" />}
-              <th>
-                <input
-                  className="input"
-                  value={nameFilter}
-                  onChange={(event) => setNameFilter(event.target.value)}
-                  placeholder="Фильтр"
-                  aria-label="Фильтр по названию"
-                />
-              </th>
-              <th>
-                <select
-                  className="select"
-                  value={boxFilter}
-                  onChange={(event) => setBoxFilter(event.target.value)}
-                  aria-label="Фильтр по ящику"
-                >
-                  <option value="">Все ящики</option>
-                  {availableBoxes.map((box) => (
-                    <option key={box.id} value={box.id}>
-                      {box.name}
-                    </option>
-                  ))}
-                </select>
-              </th>
-              <th />
-              <th>
-                <select
-                  className="select"
-                  value={categoryFilter}
-                  onChange={(event) => setCategoryFilter(event.target.value)}
-                  aria-label="Фильтр по категории"
-                >
-                  <option value="">Все категории</option>
-                  {availableCategories.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
-              </th>
-              <th>
-                <input
-                  className="input"
-                  value={notesFilter}
-                  onChange={(event) => setNotesFilter(event.target.value)}
-                  placeholder="Фильтр"
-                  aria-label="Фильтр по заметкам"
-                />
-              </th>
-              <th className="cell-updated" />
-            </tr>
+            {!noItems && (
+              <tr className="filter-row">
+                {!readOnly && <th className="cell-check" />}
+                <th>
+                  <input
+                    className="input"
+                    value={nameFilter}
+                    onChange={(event) => setNameFilter(event.target.value)}
+                    placeholder="Фильтр"
+                    aria-label="Фильтр по названию"
+                  />
+                </th>
+                <th>
+                  <select
+                    className="select"
+                    value={boxFilter}
+                    onChange={(event) => setBoxFilter(event.target.value)}
+                    aria-label="Фильтр по ящику"
+                  >
+                    <option value="">Все ящики</option>
+                    {availableBoxes.map((box) => (
+                      <option key={box.id} value={box.id}>
+                        {box.name}
+                      </option>
+                    ))}
+                  </select>
+                </th>
+                <th />
+                <th>
+                  <select
+                    className="select"
+                    value={categoryFilter}
+                    onChange={(event) => setCategoryFilter(event.target.value)}
+                    aria-label="Фильтр по категории"
+                  >
+                    <option value="">Все категории</option>
+                    {availableCategories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </th>
+                <th>
+                  <input
+                    className="input"
+                    value={notesFilter}
+                    onChange={(event) => setNotesFilter(event.target.value)}
+                    placeholder="Фильтр"
+                    aria-label="Фильтр по заметкам"
+                  />
+                </th>
+                <th className="cell-updated" />
+              </tr>
+            )}
           </thead>
           <tbody>
             {visible.length === 0 ? (
               <tr>
                 <td colSpan={readOnly ? 6 : 7} className="table-empty">
-                  Под фильтры ничего не подошло.
+                  {noItems ? "Вещей пока нет." : "Под фильтры ничего не подошло."}
                 </td>
               </tr>
             ) : (

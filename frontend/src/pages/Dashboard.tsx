@@ -46,11 +46,6 @@ export default function Dashboard() {
               <div className="stat-num">{stats.data.units}</div>
               <div className="stat-label">единиц на складе</div>
             </div>
-            {isAdmin && (
-              <Link to="/add" className="btn btn-primary btn-sm">
-                ＋ Добавить вещь
-              </Link>
-            )}
           </Card>
           <Card className="stat-tile">
             <div className="stat-num">{stats.data.boxes}</div>
@@ -78,13 +73,6 @@ export default function Dashboard() {
             icon="🧾"
             title="Пока нет ни одной вещи"
             hint="Добавьте первую вещь — она появится здесь."
-            action={
-              isAdmin ? (
-                <Link to="/add" className="btn btn-primary">
-                  ＋ Добавить вещь
-                </Link>
-              ) : undefined
-            }
           />
         ) : (
           <div className="grid-cards">

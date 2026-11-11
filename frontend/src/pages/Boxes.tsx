@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { createBox, fetchBoxes, fetchLocations, type Box } from "../api";
+import { createBox, fetchBoxes, fetchLocations, fetchStats, type Box } from "../api";
 import { useApi } from "../useApi";
 import { useAuth } from "../auth";
 import {
@@ -25,11 +25,25 @@ interface BoxGroup {
 export default function Boxes() {
   const boxes = useApi(fetchBoxes);
   const locations = useApi(fetchLocations);
+  const stats = useApi(fetchStats);
   const { isAdmin } = useAuth();
   const [creating, setCreating] = useState(false);
   const bump = useBump();
   const toast = useToast();
   const navigate = useNavigate();
+
+  const emptyWarehouse =
+    !!stats.data &&
+    stats.data.boxes === 0 &&
+    stats.data.locations === 0 &&
+    stats.data.items === 0;
+
+  const firstRun =
+    isAdmin && emptyWarehouse && !!boxes.data && boxes.data.length === 0;
+
+  // Первый запуск определяется ещё и stats — до загрузки показываем скелет,
+  // чтобы обычная страница с шапкой не мелькала перед пустым состоянием.
+  const ready = (!!boxes.data || !!boxes.error) && (!!stats.data || !!stats.error);
 
   const groups = useMemo<BoxGroup[]>(() => {
     const data = boxes.data;
@@ -54,48 +68,71 @@ export default function Boxes() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Ящики</h1>
-          <p className="page-sub">Хранилища внутри мест — по ним лежат вещи</p>
-        </div>
-        {isAdmin && (
-          <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-            ＋ Создать ящик
-          </button>
-        )}
-      </div>
-
-      {boxes.error && <ErrorState message={boxes.error} />}
-      {boxes.loading && <SkeletonGrid />}
-      {boxes.data &&
-        (boxes.data.length === 0 ? (
+      {firstRun ? (
+        <div className="first-run">
           <EmptyState
             icon="📦"
             title="Ящиков пока нет"
             hint="Создайте первый ящик и положите в него вещи."
             action={
-              isAdmin ? (
-                <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-                  ＋ Создать ящик
-                </button>
-              ) : undefined
+              <button
+                type="button"
+                className="btn btn-primary btn-lg"
+                onClick={() => setCreating(true)}
+              >
+                ＋ Создать
+              </button>
             }
           />
-        ) : (
-          groups.map((group) => (
-            <section key={group.key} className="section">
-              <h2 className="overline">
-                {group.name} · {group.boxes.length}
-              </h2>
-              <div className="grid-cards">
-                {group.boxes.map((box) => (
-                  <BoxCard key={box.id} box={box} />
-                ))}
-              </div>
-            </section>
-          ))
-        ))}
+        </div>
+      ) : !ready ? (
+        <SkeletonGrid />
+      ) : (
+        <>
+          <div className="page-header">
+            <div>
+              <h1>Ящики</h1>
+              <p className="page-sub">Хранилища внутри мест — по ним лежат вещи</p>
+            </div>
+            {isAdmin && (
+              <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+                ＋ Создать ящик
+              </button>
+            )}
+          </div>
+
+          {boxes.error && <ErrorState message={boxes.error} />}
+          {boxes.loading && <SkeletonGrid />}
+          {boxes.data &&
+            (boxes.data.length === 0 ? (
+              <EmptyState
+                icon="📦"
+                title="Ящиков пока нет"
+                hint="Создайте первый ящик и положите в него вещи."
+                action={
+                  isAdmin ? (
+                    <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+                      ＋ Создать ящик
+                    </button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              groups.map((group) => (
+                <section key={group.key} className="section">
+                  <h2 className="overline">
+                    {group.name} · {group.boxes.length}
+                  </h2>
+                  <div className="grid-cards">
+                    {group.boxes.map((box) => (
+                      <BoxCard key={box.id} box={box} />
+                    ))}
+                  </div>
+                </section>
+              ))
+            ))}
+        </>
+      )}
 
       {creating && (
         <CreateBoxModal

@@ -3,6 +3,7 @@ import {
   createLocation,
   deleteLocation,
   fetchLocations,
+  fetchStats,
   updateLocation,
   type Location,
   type LocationPatch,
@@ -25,6 +26,7 @@ import {
 
 export default function Locations() {
   const locations = useApi(fetchLocations);
+  const stats = useApi(fetchStats);
   const { isAdmin } = useAuth();
   const bump = useBump();
   const toast = useToast();
@@ -34,6 +36,20 @@ export default function Locations() {
   const [editing, setEditing] = useState<Location | null>(null);
   const [pending, setPending] = useState<Location | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const emptyWarehouse =
+    !!stats.data &&
+    stats.data.boxes === 0 &&
+    stats.data.locations === 0 &&
+    stats.data.items === 0;
+
+  const firstRun =
+    isAdmin && emptyWarehouse && !!locations.data && locations.data.length === 0;
+
+  // Первый запуск определяется ещё и stats — до загрузки показываем скелет,
+  // чтобы обычная страница с шапкой не мелькала перед пустым состоянием.
+  const ready =
+    (!!locations.data || !!locations.error) && (!!stats.data || !!stats.error);
 
   const remove = async () => {
     if (!pending) return;
@@ -54,67 +70,90 @@ export default function Locations() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Места хранения</h1>
-          <p className="page-sub">Комнаты и зоны, где стоят ящики</p>
-        </div>
-        {isAdmin && (
-          <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-            ＋ Добавить место
-          </button>
-        )}
-      </div>
-
-      {locations.error && <ErrorState message={locations.error} />}
-      {locations.loading && <SkeletonGrid />}
-      {locations.data &&
-        (locations.data.length === 0 ? (
+      {firstRun ? (
+        <div className="first-run">
           <EmptyState
             icon="🗺"
             title="Мест пока нет"
             hint="Создайте первое место — например, «Кладовка» или «Балкон»."
             action={
-              isAdmin ? (
-                <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-                  ＋ Добавить место
-                </button>
-              ) : undefined
+              <button
+                type="button"
+                className="btn btn-primary btn-lg"
+                onClick={() => setCreating(true)}
+              >
+                ＋ Создать
+              </button>
             }
           />
-        ) : (
-          <div className="grid-cards">
-            {locations.data.map((location) => (
-              <Card key={location.id} hover className="box-card">
-                <div className="box-card-title">
-                  <span>{location.name}</span>
-                  <Badge tone="muted">
-                    {location.box_count} ящ.
-                  </Badge>
-                </div>
-                {location.description && <p className="dim">{location.description}</p>}
-                {isAdmin && (
-                  <div className="row mt-8">
-                    <button
-                      type="button"
-                      className="btn btn-outline btn-sm"
-                      onClick={() => setEditing(location)}
-                    >
-                      ✏️ Редактировать
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-danger btn-sm"
-                      onClick={() => setPending(location)}
-                    >
-                      🗑 Удалить
-                    </button>
-                  </div>
-                )}
-              </Card>
-            ))}
+        </div>
+      ) : !ready ? (
+        <SkeletonGrid />
+      ) : (
+        <>
+          <div className="page-header">
+            <div>
+              <h1>Места хранения</h1>
+              <p className="page-sub">Комнаты и зоны, где стоят ящики</p>
+            </div>
+            {isAdmin && (
+              <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+                ＋ Добавить место
+              </button>
+            )}
           </div>
-        ))}
+
+          {locations.error && <ErrorState message={locations.error} />}
+          {locations.loading && <SkeletonGrid />}
+          {locations.data &&
+            (locations.data.length === 0 ? (
+              <EmptyState
+                icon="🗺"
+                title="Мест пока нет"
+                hint="Создайте первое место — например, «Кладовка» или «Балкон»."
+                action={
+                  isAdmin ? (
+                    <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+                      ＋ Добавить место
+                    </button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              <div className="grid-cards">
+                {locations.data.map((location) => (
+                  <Card key={location.id} hover className="box-card">
+                    <div className="box-card-title">
+                      <span>{location.name}</span>
+                      <Badge tone="muted">
+                        {location.box_count} ящ.
+                      </Badge>
+                    </div>
+                    {location.description && <p className="dim">{location.description}</p>}
+                    {isAdmin && (
+                      <div className="row mt-8">
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() => setEditing(location)}
+                        >
+                          ✏️ Редактировать
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-sm"
+                          onClick={() => setPending(location)}
+                        >
+                          🗑 Удалить
+                        </button>
+                      </div>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            ))}
+        </>
+      )}
 
       {creating && (
         <CreateLocationModal

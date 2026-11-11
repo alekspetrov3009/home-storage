@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { fetchBoxes, fetchItems, fetchLocations, type Box, type Item } from "../api";
 import { useApi } from "../useApi";
 import { useAuth } from "../auth";
@@ -34,6 +34,7 @@ function savedView(): View {
 
 export default function Items() {
   const { isAdmin } = useAuth();
+  const navigate = useNavigate();
   // Таблица доступна всем: админам — bulk-редактор, роли «просмотр» — только чтение.
   const [view, setView] = useState<View>(savedView);
   const [locationFilter, setLocationFilter] = useState("");
@@ -43,6 +44,25 @@ export default function Items() {
   const boxes = useApi(fetchBoxes);
   const locations = useApi(fetchLocations);
   const items = useApi(fetchItems);
+
+  const noItems = !!items.data && items.data.length === 0;
+  const hasItems = !!items.data && items.data.length > 0;
+
+  const emptyWarehouse =
+    noItems &&
+    !!boxes.data &&
+    boxes.data.length === 0 &&
+    !!locations.data &&
+    locations.data.length === 0;
+
+  const firstRun = isAdmin && emptyWarehouse;
+
+  // Раскладка (фильтры, пустые состояния) зависит от всех трёх списков —
+  // до их загрузки показываем только скелет, чтобы ничего не мигало.
+  const ready =
+    (!!items.data || !!items.error) &&
+    (!!boxes.data || !!boxes.error) &&
+    (!!locations.data || !!locations.error);
 
   useEffect(() => {
     try {
@@ -152,144 +172,169 @@ export default function Items() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Вещи</h1>
-          <p className="page-sub">
-            {items.data ? `Найдено: ${located.length}` : "Что и где лежит"}
-          </p>
+      {firstRun ? (
+        <div className="first-run">
+          <EmptyState
+            icon="🧾"
+            title="Пока нет ни одной вещи"
+            hint="Добавьте первую вещь на склад."
+            action={
+              <button
+                type="button"
+                className="btn btn-primary btn-lg"
+                onClick={() => navigate("/add")}
+              >
+                ＋ Создать
+              </button>
+            }
+          />
         </div>
-        <span className="segmented" role="tablist" aria-label="Вид списка">
-          <button
-            type="button"
-            className={`segmented-btn${view === "cards" ? " active" : ""}`}
-            onClick={() => setView("cards")}
-          >
-            Карточки
-          </button>
-          <button
-            type="button"
-            className={`segmented-btn${view === "table" ? " active" : ""}`}
-            onClick={() => setView("table")}
-          >
-            Таблица
-          </button>
-        </span>
-      </div>
-
-      {view === "cards" ? (
-        <>
-          <div className="section" style={{ maxWidth: 320 }}>
-            <select
-              className="select"
-              value={locationFilter}
-              onChange={(event) => setLocationFilter(event.target.value)}
-              aria-label="Место хранения"
-            >
-              <option value="">Все места</option>
-              {(locations.data ?? []).map((location) => (
-                <option key={location.id} value={location.id}>
-                  {location.name}
-                </option>
-              ))}
-              <option value={NO_LOCATION}>— без места —</option>
-            </select>
-          </div>
-          <div className="chips-row section">
-            <Chip active={!boxFilter} onClick={() => setBoxFilter("")}>
-              Все ящики
-            </Chip>
-            {availableBoxes.map((box) => (
-              <Chip
-                key={box.id}
-                active={boxFilter === box.id}
-                onClick={() => setBoxFilter(boxFilter === box.id ? "" : box.id)}
-              >
-                <span
-                  className="box-color-dot sm"
-                  style={{ background: box.color }}
-                  aria-hidden="true"
-                />
-                {box.name}
-              </Chip>
-            ))}
-          </div>
-          <div className="chips-row section">
-            <Chip active={!categoryFilter} onClick={() => setCategoryFilter("")}>
-              Все категории
-            </Chip>
-            {availableCategories.map((category) => (
-              <Chip
-                key={category}
-                active={categoryFilter === category}
-                onClick={() =>
-                  setCategoryFilter(categoryFilter === category ? "" : category)
-                }
-              >
-                {category}
-              </Chip>
-            ))}
-          </div>
-
-          {items.error && <ErrorState message={items.error} />}
-          {items.loading && <SkeletonGrid />}
-          {items.data &&
-            (located.length === 0 ? (
-              filtered ? (
-                <Card>
-                  <EmptyState
-                    icon="🔍"
-                    title="Под фильтр ничего не подошло"
-                    hint="Сбросьте фильтры или добавьте вещь."
-                    action={
-                      <button
-                        type="button"
-                        className="btn btn-outline"
-                        onClick={resetFilters}
-                      >
-                        Сбросить фильтры
-                      </button>
-                    }
-                  />
-                </Card>
-              ) : (
-                <EmptyState
-                  icon="🧾"
-                  title="Пока нет ни одной вещи"
-                  hint="Добавьте первую вещь на склад."
-                  action={
-                    isAdmin ? (
-                      <Link to="/add" className="btn btn-primary">
-                        ＋ Добавить вещь
-                      </Link>
-                    ) : undefined
-                  }
-                />
-              )
-            ) : (
-              groups.map((group) => (
-                <section key={group.key} className="section">
-                  <h2 className="overline">
-                    {group.name} · {group.items.length}
-                  </h2>
-                  <div className="grid-cards">
-                    {group.items.map((item) => (
-                      <ItemCard key={item.id} item={item} />
-                    ))}
-                  </div>
-                </section>
-              ))
-            ))}
-        </>
+      ) : !ready ? (
+        <SkeletonGrid />
       ) : (
         <>
-          {isAdmin && filtered && (
-            <p className="dim mb-16">
-              Массовое сохранение перезаписывает весь лист целиком: фильтры таблицы
-              скрывают строки только на экране, при сохранении записываются все строки.
-            </p>
+          <div className="page-header">
+            <div>
+              <h1>Вещи</h1>
+              <p className="page-sub">
+                {items.data ? `Найдено: ${located.length}` : "Что и где лежит"}
+              </p>
+            </div>
+            <span className="segmented" role="tablist" aria-label="Вид списка">
+              <button
+                type="button"
+                className={`segmented-btn${view === "cards" ? " active" : ""}`}
+                onClick={() => setView("cards")}
+              >
+                Карточки
+              </button>
+              <button
+                type="button"
+                className={`segmented-btn${view === "table" ? " active" : ""}`}
+                onClick={() => setView("table")}
+              >
+                Таблица
+              </button>
+            </span>
+          </div>
+
+          {view === "cards" ? (
+            <>
+              {hasItems && (
+                <>
+                  <div className="section" style={{ maxWidth: 320 }}>
+                    <select
+                      className="select"
+                      value={locationFilter}
+                      onChange={(event) => setLocationFilter(event.target.value)}
+                      aria-label="Место хранения"
+                    >
+                      <option value="">Все места</option>
+                      {(locations.data ?? []).map((location) => (
+                        <option key={location.id} value={location.id}>
+                          {location.name}
+                        </option>
+                      ))}
+                      <option value={NO_LOCATION}>— без места —</option>
+                    </select>
+                  </div>
+                  <div className="chips-row section">
+                    <Chip active={!boxFilter} onClick={() => setBoxFilter("")}>
+                      Все ящики
+                    </Chip>
+                    {availableBoxes.map((box) => (
+                      <Chip
+                        key={box.id}
+                        active={boxFilter === box.id}
+                        onClick={() => setBoxFilter(boxFilter === box.id ? "" : box.id)}
+                      >
+                        <span
+                          className="box-color-dot sm"
+                          style={{ background: box.color }}
+                          aria-hidden="true"
+                        />
+                        {box.name}
+                      </Chip>
+                    ))}
+                  </div>
+                  <div className="chips-row section">
+                    <Chip active={!categoryFilter} onClick={() => setCategoryFilter("")}>
+                      Все категории
+                    </Chip>
+                    {availableCategories.map((category) => (
+                      <Chip
+                        key={category}
+                        active={categoryFilter === category}
+                        onClick={() =>
+                          setCategoryFilter(categoryFilter === category ? "" : category)
+                        }
+                      >
+                        {category}
+                      </Chip>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {items.error && <ErrorState message={items.error} />}
+              {items.loading && <SkeletonGrid />}
+              {items.data &&
+                (items.data.length === 0 ? (
+                  <EmptyState
+                    icon="🧾"
+                    title="Пока нет ни одной вещи"
+                    hint="Добавьте первую вещь на склад."
+                    action={
+                      isAdmin ? (
+                        <Link to="/add" className="btn btn-primary">
+                          ＋ Добавить вещь
+                        </Link>
+                      ) : undefined
+                    }
+                  />
+                ) : located.length === 0 ? (
+                  <Card>
+                    <EmptyState
+                      icon="🔍"
+                      title="Под фильтр ничего не подошло"
+                      hint="Сбросьте фильтры или добавьте вещь."
+                      action={
+                        <button
+                          type="button"
+                          className="btn btn-outline"
+                          onClick={resetFilters}
+                        >
+                          Сбросить фильтры
+                        </button>
+                      }
+                    />
+                  </Card>
+                ) : (
+                  groups.map((group) => (
+                    <section key={group.key} className="section">
+                      <h2 className="overline">
+                        {group.name} · {group.items.length}
+                      </h2>
+                      <div className="grid-cards">
+                        {group.items.map((item) => (
+                          <ItemCard key={item.id} item={item} />
+                        ))}
+                      </div>
+                    </section>
+                  ))
+                ))}
+            </>
+          ) : (
+            <>
+              {isAdmin && filtered && (
+                <p className="dim mb-16">
+                  Массовое сохранение перезаписывает весь лист целиком: фильтры таблицы
+                  скрывают строки только на экране, при сохранении записываются все строки.
+                </p>
+              )}
+              <ItemsTable readOnly={!isAdmin} />
+            </>
           )}
-          <ItemsTable readOnly={!isAdmin} />
         </>
       )}
     </>

@@ -344,6 +344,11 @@ a:hover {
   font-size: 0.85rem;
 }
 
+.btn-lg {
+  padding: 13px 28px;
+  font-size: 1.05rem;
+}
+
 .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -1014,6 +1019,14 @@ a:hover {
   font-size: 1.05rem;
 }
 
+.first-run {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - var(--topbar-h) - 96px);
+  min-height: calc(100dvh - var(--topbar-h) - 96px);
+}
+
 .error-state {
   padding: 20px 22px;
   border-radius: var(--radius);
@@ -1287,6 +1300,11 @@ a:hover {
 
   .page {
     padding: 20px 14px 48px;
+  }
+
+  .first-run {
+    min-height: calc(100vh - var(--topbar-h) - 68px);
+    min-height: calc(100dvh - var(--topbar-h) - 68px);
   }
 
   .stats-grid {
