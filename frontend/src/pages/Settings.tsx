@@ -209,7 +209,7 @@ function CategoriesSection() {
           {list.map((name) => {
             const count = counts.get(name.toLowerCase()) ?? 0;
             return (
-              <li key={name} className="category-row">
+              <li key={name} className="settings-row">
                 {editing === name ? (
                   <>
                     <input
@@ -246,7 +246,7 @@ function CategoriesSection() {
                   </>
                 ) : (
                   <>
-                    <span className="category-name" title={name}>
+                    <span className="settings-name" title={name}>
                       {name}
                     </span>
                     <Badge tone="muted">
@@ -263,7 +263,7 @@ function CategoriesSection() {
                     </button>
                     <button
                       type="button"
-                      className="btn btn-ghost btn-sm category-delete"
+                      className="btn btn-ghost btn-sm settings-delete"
                       onClick={() => setDeleting({ name, count })}
                       aria-label={`Удалить «${name}»`}
                       title="Удалить"

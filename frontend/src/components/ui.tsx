@@ -445,6 +445,8 @@ export function CategoryPicker({
         <input
           className="input"
           placeholder="Название новой категории"
+          aria-label="Название новой категории"
+          autoFocus
           value={typed}
           onChange={(event) => onTyped(event.target.value)}
         />

@@ -200,22 +200,29 @@ export default function Items() {
                 {items.data ? `Найдено: ${located.length}` : "Что и где лежит"}
               </p>
             </div>
-            <span className="segmented" role="tablist" aria-label="Вид списка">
-              <button
-                type="button"
-                className={`segmented-btn${view === "cards" ? " active" : ""}`}
-                onClick={() => setView("cards")}
-              >
-                Карточки
-              </button>
-              <button
-                type="button"
-                className={`segmented-btn${view === "table" ? " active" : ""}`}
-                onClick={() => setView("table")}
-              >
-                Таблица
-              </button>
-            </span>
+            <div className="page-header-actions">
+              <span className="segmented" role="tablist" aria-label="Вид списка">
+                <button
+                  type="button"
+                  className={`segmented-btn${view === "cards" ? " active" : ""}`}
+                  onClick={() => setView("cards")}
+                >
+                  Карточки
+                </button>
+                <button
+                  type="button"
+                  className={`segmented-btn${view === "table" ? " active" : ""}`}
+                  onClick={() => setView("table")}
+                >
+                  Таблица
+                </button>
+              </span>
+              {isAdmin && (
+                <Link to="/add" className="btn btn-primary">
+                  ＋ Добавить вещь
+                </Link>
+              )}
+            </div>
           </div>
 
           {view === "cards" ? (

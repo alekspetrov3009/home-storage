@@ -63,7 +63,7 @@ export default function PasswordChange() {
 
   return (
     <>
-      <p className="overline">Аккаунт</p>
+      <p className="overline">Пароль</p>
       <Card className="section">
         <form onSubmit={submit}>
           <Field label="Текущий пароль">

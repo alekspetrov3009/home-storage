@@ -4,9 +4,11 @@ import { Badge, Card, Chip } from "./ui";
 
 export default function ItemCard({ item }: { item: Item }) {
   return (
-    <Card hover className="item-card">
+    <Card hover className="item-card card-link">
       <div className="item-card-title">
-        <Link to={`/item/${encodeURIComponent(item.id)}`}>{item.name}</Link>
+        <Link className="card-link-cover" to={`/item/${encodeURIComponent(item.id)}`}>
+          {item.name}
+        </Link>
         <Badge>{item.quantity}</Badge>
       </div>
       <div className="chips-row">

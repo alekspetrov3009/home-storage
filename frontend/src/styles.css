@@ -266,6 +266,13 @@ a:hover {
   letter-spacing: -0.03em;
 }
 
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .page-sub {
   margin: 4px 0 0;
   color: var(--muted);
@@ -436,6 +443,18 @@ a:hover {
 .card-hover:hover {
   box-shadow: var(--shadow-hover);
   transform: translateY(-2px);
+}
+
+/* Карточка-ссылка: клик по любому месту карточки ведёт по ссылке названия. */
+.card-link {
+  position: relative;
+}
+
+.card-link .card-link-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
 }
 
 .grid-cards {
@@ -934,6 +953,19 @@ a:hover {
 /* Страница /settings: вкладки «Категории» и «Пользователи» (переключатель
    в шапке страницы); разделы внутри вкладки — ниже по схеме. */
 
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 28px 0 12px;
+}
+
+.section-head .overline {
+  margin: 0;
+}
+
 .settings-add {
   display: flex;
   gap: 8px;
@@ -954,7 +986,7 @@ a:hover {
   gap: 2px;
 }
 
-.category-row {
+.settings-row {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -962,11 +994,11 @@ a:hover {
   border-radius: 10px;
 }
 
-.category-row:hover {
+.settings-row:hover {
   background: var(--surface2);
 }
 
-.category-row .category-name {
+.settings-row .settings-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -974,20 +1006,24 @@ a:hover {
   white-space: nowrap;
 }
 
-.category-row .btn-sm {
+.settings-row .btn-sm {
   opacity: 0.6;
   flex: none;
 }
 
-.category-row:hover .btn-sm,
-.category-row .btn-sm:focus-visible {
+.settings-row:hover .btn-sm,
+.settings-row .btn-sm:focus-visible {
   opacity: 1;
 }
 
-.category-row .input {
+.settings-row .input {
   flex: 1;
   min-width: 0;
   padding: 5px 10px;
+}
+
+.settings-row .settings-date {
+  flex: none;
 }
 
 .settings-note {
@@ -1320,11 +1356,11 @@ a:hover {
     grid-template-columns: 1fr;
   }
 
-  .topbar-actions .btn span.add-text {
+  .user-menu-trigger .user-menu-name {
     display: none;
   }
 
-  .user-menu-trigger .user-menu-name {
+  .settings-row .settings-date {
     display: none;
   }
 
@@ -1526,44 +1562,6 @@ a:hover {
 
 /* Таблица пользователей (вкладка «Пользователи» на /settings, только
    администратор). */
-.users-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.users-table th {
-  text-align: left;
-  padding: 8px 12px;
-  color: var(--muted);
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--border);
-}
-
-.users-table td {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-
-.users-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.users-login {
-  font-weight: 600;
-}
-
-.users-actions {
-  text-align: right;
-  white-space: nowrap;
-}
-
-.users-actions .btn + .btn {
-  margin-left: 6px;
-}
-
 .check-row {
   display: flex;
   align-items: center;

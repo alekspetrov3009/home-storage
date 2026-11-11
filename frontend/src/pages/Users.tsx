@@ -21,10 +21,8 @@ import {
   Badge,
   Card,
   ConfirmDialog,
-  ErrorState,
   Field,
   Modal,
-  Skeleton,
   useBump,
   useToast,
 } from "../components/ui";
@@ -66,81 +64,60 @@ export default function Users() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Пользователи</h1>
-          <p className="page-sub">
-            Учётные записи и роли: администратор управляет складом, просмотр —
-            только читает
-          </p>
-        </div>
+      <div className="section-head">
+        <p className="overline">Пользователи</p>
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
           ＋ Новый пользователь
         </button>
       </div>
 
-      {users.error && <ErrorState message={users.error} />}
-      {users.loading && <Skeleton />}
-      {users.data && (
-        <Card className="section">
-          <table className="users-table">
-            <thead>
-              <tr>
-                <th>Логин</th>
-                <th>Роль</th>
-                <th>Статус</th>
-                <th>Создан</th>
-                <th aria-label="Действия" />
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((user) => (
-                <tr key={user.id}>
-                  <td className="users-login">{user.login}</td>
-                  <td>
-                    <Badge tone={user.is_admin ? "accent" : "muted"}>
-                      {ROLE_LABEL[user.role] ?? user.role}
-                    </Badge>
-                  </td>
-                  <td>
-                    {user.blocked ? (
-                      <Badge tone="danger">заблокирован</Badge>
-                    ) : (
-                      <Badge tone="success">активен</Badge>
-                    )}
-                  </td>
-                  <td className="dim num">{user.created_at.slice(0, 16)}</td>
-                  <td className="users-actions">
-                    <button
-                      type="button"
-                      className="btn btn-outline btn-sm"
-                      onClick={() => setEditing(user)}
-                      aria-label={`Редактировать «${user.login}»`}
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-danger btn-sm"
-                      onClick={() => setDeleting(user)}
-                      aria-label={`Удалить «${user.login}»`}
-                    >
-                      🗑
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {list.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="dim">
-                    Пользователей нет — создайте первую учётную запись.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </Card>
-      )}
+      <Card className="section">
+        {users.error && <p className="inline-error">{users.error}</p>}
+        {users.loading && <p className="dim">Загрузка…</p>}
+        {users.data && list.length === 0 && (
+          <p className="dim">Пользователей пока нет — создайте первую учётную запись.</p>
+        )}
+        {list.length > 0 && (
+          <ul className="settings-list">
+            {list.map((user) => (
+              <li key={user.id} className="settings-row">
+                <span className="settings-name" title={user.login}>
+                  {user.login}
+                </span>
+                <Badge tone={user.is_admin ? "accent" : "muted"}>
+                  {ROLE_LABEL[user.role] ?? user.role}
+                </Badge>
+                {user.blocked ? (
+                  <Badge tone="danger">заблокирован</Badge>
+                ) : (
+                  <Badge tone="success">активен</Badge>
+                )}
+                <span className="dim num settings-date" title="Создан">
+                  {user.created_at.slice(0, 16)}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setEditing(user)}
+                  aria-label={`Редактировать «${user.login}»`}
+                  title="Редактировать"
+                >
+                  ✏️
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm settings-delete"
+                  onClick={() => setDeleting(user)}
+                  aria-label={`Удалить «${user.login}»`}
+                  title="Удалить"
+                >
+                  🗑
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       {creating && (
         <UserFormModal

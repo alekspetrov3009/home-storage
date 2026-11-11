@@ -141,7 +141,17 @@ function BoxDetailById({ boxId }: { boxId: string }) {
       <div className="detail-grid section">
         <div className="section">
           {data.description && <p className="dim mb-16">{data.description}</p>}
-          <h2 className="overline">Содержимое</h2>
+          <div className="section-head">
+            <h2 className="overline">Содержимое</h2>
+            {isAdmin && data.items.length > 0 && (
+              <Link
+                to={`/add?box=${encodeURIComponent(data.id)}`}
+                className="btn btn-primary btn-sm"
+              >
+                ＋ Добавить вещь
+              </Link>
+            )}
+          </div>
           {data.items.length === 0 ? (
             <EmptyState
               icon="🧾"

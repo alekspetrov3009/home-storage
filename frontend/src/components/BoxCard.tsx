@@ -4,9 +4,11 @@ import { Card, Chip } from "./ui";
 
 export default function BoxCard({ box }: { box: Box }) {
   return (
-    <Card hover className="box-card" style={{ borderTop: `4px solid ${box.color}` }}>
+    <Card hover className="box-card card-link" style={{ borderTop: `4px solid ${box.color}` }}>
       <div className="box-card-title">
-        <Link to={`/box?box=${encodeURIComponent(box.id)}`}>{box.name}</Link>
+        <Link className="card-link-cover" to={`/box?box=${encodeURIComponent(box.id)}`}>
+          {box.name}
+        </Link>
         <span className="box-card-count num">
           {box.unit_count} <span className="count-unit">ед. · {box.item_count} поз.</span>
         </span>
