@@ -187,7 +187,7 @@ export function Badge({
   tone = "accent",
   children,
 }: {
-  tone?: "accent" | "muted" | "danger" | "warning";
+  tone?: "accent" | "muted" | "danger" | "warning" | "success";
   children: ReactNode;
 }) {
   const toneClass = tone === "accent" ? "" : ` badge-${tone}`;

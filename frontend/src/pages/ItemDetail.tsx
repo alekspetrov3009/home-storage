@@ -11,6 +11,7 @@ import {
   type ItemPatch,
 } from "../api";
 import { useApi } from "../useApi";
+import { useAuth } from "../auth";
 import {
   Badge,
   Card,
@@ -34,6 +35,7 @@ export default function ItemDetail() {
   const item = useApi(() => fetchItem(id), [id]);
   const boxes = useApi(fetchBoxes);
   const categories = useApi(fetchCategories);
+  const { isAdmin } = useAuth();
   const bump = useBump();
   const toast = useToast();
   const undo = useUndo();
@@ -122,12 +124,16 @@ export default function ItemDetail() {
           </div>
         </div>
         <div className="row">
-          <button type="button" className="btn btn-outline" onClick={() => setEditing(true)}>
-            ✏️ Редактировать
-          </button>
-          <button type="button" className="btn btn-danger" onClick={() => setConfirming(true)}>
-            🗑 Удалить
-          </button>
+          {isAdmin && (
+            <>
+              <button type="button" className="btn btn-outline" onClick={() => setEditing(true)}>
+                ✏️ Редактировать
+              </button>
+              <button type="button" className="btn btn-danger" onClick={() => setConfirming(true)}>
+                🗑 Удалить
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -137,25 +143,31 @@ export default function ItemDetail() {
             <span className="overline" style={{ margin: 0 }}>
               Количество
             </span>
-            <Stepper value={data.quantity} onChange={changeQuantity} />
+            {isAdmin ? (
+              <Stepper value={data.quantity} onChange={changeQuantity} />
+            ) : (
+              <Badge>{data.quantity}</Badge>
+            )}
           </div>
 
-          <div className="field">
-            <span className="field-label">Перенести в ящик</span>
-            <select
-              className="select"
-              value={data.box_id}
-              onChange={(event) => transfer(event.target.value)}
-            >
-              <option value="">— без ящика —</option>
-              {(boxes.data ?? []).map((box) => (
-                <option key={box.id} value={box.id}>
-                  {box.name}
-                  {box.id === data.box_id ? " (сейчас здесь)" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
+          {isAdmin && (
+            <div className="field">
+              <span className="field-label">Перенести в ящик</span>
+              <select
+                className="select"
+                value={data.box_id}
+                onChange={(event) => transfer(event.target.value)}
+              >
+                <option value="">— без ящика —</option>
+                {(boxes.data ?? []).map((box) => (
+                  <option key={box.id} value={box.id}>
+                    {box.name}
+                    {box.id === data.box_id ? " (сейчас здесь)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {data.notes && (
             <>

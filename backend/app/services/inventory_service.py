@@ -12,9 +12,15 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Any
 
-from app.domain.categories import normalize_category, unique_categories
+from app.domain.categories import (
+    combined_categories,
+    find_category,
+    normalize_category,
+    unique_categories,
+    validate_category_name,
+)
 from app.domain.colors import pick_box_color
-from app.domain.errors import NotFoundError, ValidationError
+from app.domain.errors import ConflictError, NotFoundError, ValidationError
 from app.domain.fields import ITEM_FIELDS, now_str
 from app.domain.ids import new_id
 from app.domain.models import Box, Item, Location
@@ -42,19 +48,74 @@ class InventoryService:
     def load_locations(self) -> pd.DataFrame:
         return self._repo.load_locations()
 
-    def get_categories(self) -> list[str]:
-        """Общий список категорий: уникальные значения из всех вещей, по алфавиту.
+    def load_categories(self) -> pd.DataFrame:
+        return self._repo.load_categories()
 
-        Категории не хранятся отдельно — справочник складывается из того,
-        что уже используется у вещей, поэтому он одинаковый для всех форм.
-        Дубли пишутся без учёта регистра («инструменты» и «Инструменты» —
-        одна категория); каноническим считается первое встретившееся
-        написание. Тот же алгоритм, что и в формах (см. ``forms.category_options``).
+    def get_categories(self) -> list[str]:
+        """Общий список категорий: сохранённые в справочнике + используемые у вещей.
+
+        Справочник (лист «Категории») пополняется через настройки: там можно
+        завести категорию заранее, без единой вещи. Категории, встречающиеся
+        только у вещей, остаются в списке как раньше — формы и фильтры видят
+        оба источника. Дубли пишутся без учёта регистра («инструменты» и
+        «Инструменты» — одна категория); каноническим считается первое
+        встретившееся написание. Список — по алфавиту.
         """
+        stored = self.load_categories()
+        stored_names = stored["Название"].tolist() if not stored.empty else []
         items = self.load_items()
-        if items.empty or "Категория" not in items.columns:
-            return []
-        return unique_categories(items["Категория"].tolist())
+        used = (
+            items["Категория"].tolist()
+            if not items.empty and "Категория" in items.columns
+            else []
+        )
+        return combined_categories(stored_names, used)
+
+    # ------------------------------------------------------------------ #
+    # Категории (справочник настроек)
+    # ------------------------------------------------------------------ #
+
+    def create_category(self, name: str) -> str:
+        """Добавляет категорию в справочник. Возвращает каноническое имя.
+
+        Одноимённые (без учёта регистра) запрещены — и среди сохранённых,
+        и среди используемых у вещей.
+        """
+        clean = validate_category_name(name)
+        if find_category(clean, self.get_categories()) is not None:
+            raise ConflictError(f"Категория «{clean}» уже существует.")
+        self._repo.add_category(clean)
+        return clean
+
+    def rename_category(self, old: str, new: str) -> tuple[str, int]:
+        """Переименовывает категорию в справочнике и у всех вещей.
+
+        Возвращает (новое имя, число вещей с изменившейся категорией).
+        Переименование только в другом регистре легально: написание вещей
+        приводится к новому каноническому виду.
+        """
+        old_clean = validate_category_name(old)
+        new_clean = validate_category_name(new)
+        known = self.get_categories()
+        canonical = find_category(old_clean, known)
+        if canonical is None:
+            raise NotFoundError(f"Категория «{old_clean}» не найдена.")
+        if new_clean.lower() != old_clean.lower() and find_category(new_clean, known) is not None:
+            raise ConflictError(f"Категория «{new_clean}» уже существует.")
+        updated = self._repo.rename_category(canonical, new_clean)
+        return new_clean, updated
+
+    def delete_category(self, name: str) -> tuple[str, int]:
+        """Удаляет категорию из справочника; вещи становятся «без категории».
+
+        Возвращает (удалённое имя, число вещей с очищенной категорией).
+        """
+        clean = validate_category_name(name)
+        canonical = find_category(clean, self.get_categories())
+        if canonical is None:
+            raise NotFoundError(f"Категория «{clean}» не найдена.")
+        updated = self._repo.delete_category(canonical)
+        return canonical, updated
 
     def clear_cache(self) -> None:
         """Сброс кэша чтений, если репозиторий его поддерживает."""

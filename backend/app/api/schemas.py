@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.colors import pick_box_color
 from app.domain.trash import DeletedEntry
+from app.domain.users import role_slug
 from app.helpers import to_qty
 
 # Тип записи корзины ↔ слаг в URL.
@@ -210,6 +211,73 @@ class ItemsReplace(_Input):
     items: list[ItemSaveRow]
 
 
+class CategoryCreate(_Input):
+    name: str
+
+
+class CategoryUpdate(_Input):
+    """Переименование категории: ``name`` — текущее имя, ``new_name`` — новое.
+
+    Категория адресуется телом запроса, а не путём: названия могут содержать
+    «/» и любые другие символы.
+    """
+
+    name: str
+    new_name: str
+
+
+class CategoryMutationOut(BaseModel):
+    """Итог операции над категорией + число вещей с изменившейся категорией."""
+
+    name: str
+    items_updated: int
+
+
+class UserOut(BaseModel):
+    """Учётная запись без хеша пароля. ``role`` — слаг: admin/viewer."""
+
+    id: str
+    login: str
+    role: str
+    is_admin: bool
+    blocked: bool
+    created_at: str
+
+
+class RegisterIn(_Input):
+    """Самостоятельная регистрация (роль всегда «просмотр»)."""
+
+    login: str
+    password: str
+
+
+class LoginIn(_Input):
+    """Вход по логину и паролю."""
+
+    login: str
+    password: str
+
+
+class UserCreate(_Input):
+    """Создание учётной записи администратором; ``role`` — слаг admin/viewer."""
+
+    login: str
+    password: str
+    role: str = "viewer"
+
+
+class UserUpdate(_Input):
+    """Частичное обновление учётной записи: None = поле не передано.
+
+    Пустой ``password`` (или null) — пароль не менять.
+    """
+
+    login: str | None = None
+    password: str | None = None
+    role: str | None = None
+    blocked: bool | None = None
+
+
 # --------------------------------------------------------------------------- #
 # Фабрики: строка DataFrame (или dict) → схема ответа
 # --------------------------------------------------------------------------- #
@@ -273,4 +341,16 @@ def trash_entry_out(entry: DeletedEntry) -> TrashEntryOut:
         parent_id=entry.parent_id,
         deleted_at=entry.deleted_at,
         data=entry.data,
+    )
+
+
+def user_out(user) -> UserOut:
+    """Доменный User → UserOut (роль переводится в слаг, хеш не отдаётся)."""
+    return UserOut(
+        id=user.id,
+        login=user.login,
+        role=role_slug(user.role),
+        is_admin=user.is_admin,
+        blocked=user.blocked,
+        created_at=user.created_at,
     )

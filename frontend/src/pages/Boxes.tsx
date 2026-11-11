@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { createBox, fetchBoxes, fetchLocations, type Box } from "../api";
 import { useApi } from "../useApi";
+import { useAuth } from "../auth";
 import {
   EmptyState,
   ErrorState,
@@ -24,6 +25,7 @@ interface BoxGroup {
 export default function Boxes() {
   const boxes = useApi(fetchBoxes);
   const locations = useApi(fetchLocations);
+  const { isAdmin } = useAuth();
   const [creating, setCreating] = useState(false);
   const bump = useBump();
   const toast = useToast();
@@ -57,9 +59,11 @@ export default function Boxes() {
           <h1>Ящики</h1>
           <p className="page-sub">Хранилища внутри мест — по ним лежат вещи</p>
         </div>
-        <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-          ＋ Создать ящик
-        </button>
+        {isAdmin && (
+          <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+            ＋ Создать ящик
+          </button>
+        )}
       </div>
 
       {boxes.error && <ErrorState message={boxes.error} />}
@@ -71,9 +75,11 @@ export default function Boxes() {
             title="Ящиков пока нет"
             hint="Создайте первый ящик и положите в него вещи."
             action={
-              <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-                ＋ Создать ящик
-              </button>
+              isAdmin ? (
+                <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+                  ＋ Создать ящик
+                </button>
+              ) : undefined
             }
           />
         ) : (

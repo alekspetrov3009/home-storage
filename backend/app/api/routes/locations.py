@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.api.deps import require_admin, require_auth
 from app.api.schemas import (
     LocationCreate,
     LocationOut,
@@ -17,7 +18,8 @@ from app.api.schemas import (
 from app.context import get_service
 from app.domain.errors import NotFoundError
 
-router = APIRouter(prefix="/api", tags=["locations"])
+# Чтение доступно любой авторизованной роли; мутации — только администратору.
+router = APIRouter(prefix="/api", tags=["locations"], dependencies=[Depends(require_auth)])
 
 
 def _box_counts(boxes: Any) -> dict[str, int]:
@@ -49,7 +51,7 @@ def list_locations() -> list[LocationOut]:
     ]
 
 
-@router.post("/locations", response_model=LocationOut, status_code=201)
+@router.post("/locations", response_model=LocationOut, status_code=201, dependencies=[Depends(require_admin)])
 def create_location(payload: LocationCreate) -> LocationOut:
     """Создаёт место хранения. Одноимённое (без учёта регистра) — 409."""
     service = get_service()
@@ -58,7 +60,7 @@ def create_location(payload: LocationCreate) -> LocationOut:
     return _location_out_by_id(service, location_id)
 
 
-@router.patch("/locations/{location_id}", response_model=LocationOut)
+@router.patch("/locations/{location_id}", response_model=LocationOut, dependencies=[Depends(require_admin)])
 def update_location(location_id: str, payload: LocationUpdate) -> LocationOut:
     """Частичное обновление места: название и описание.
 
@@ -77,7 +79,7 @@ def update_location(location_id: str, payload: LocationUpdate) -> LocationOut:
     return _location_out_by_id(service, location_id)
 
 
-@router.delete("/locations/{location_id}", response_model=TrashEntryOut)
+@router.delete("/locations/{location_id}", response_model=TrashEntryOut, dependencies=[Depends(require_admin)])
 def delete_location(location_id: str) -> TrashEntryOut:
     """Убирает место хранения в корзину; ящики остаются «без места»."""
     service = get_service()

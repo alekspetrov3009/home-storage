@@ -6,8 +6,9 @@ import io
 from typing import Any
 
 import qrcode
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 
+from app.api.deps import require_admin, require_auth
 from app.api.schemas import (
     BoxCreate,
     BoxDetail,
@@ -23,7 +24,8 @@ from app.context import get_service
 from app.domain.errors import NotFoundError
 from app.helpers import box_label_map, location_label_map, to_qty
 
-router = APIRouter(prefix="/api", tags=["boxes"])
+# Чтение доступно любой авторизованной роли; мутации — только администратору.
+router = APIRouter(prefix="/api", tags=["boxes"], dependencies=[Depends(require_auth)])
 
 
 def _row_by_id(df: Any, record_id: str) -> Any:
@@ -85,7 +87,7 @@ def list_boxes() -> list[BoxOut]:
     ]
 
 
-@router.post("/boxes", response_model=BoxOut, status_code=201)
+@router.post("/boxes", response_model=BoxOut, status_code=201, dependencies=[Depends(require_admin)])
 def create_box(payload: BoxCreate) -> BoxOut:
     """Создаёт ящик; несуществующее место хранения — 404."""
     service = get_service()
@@ -100,7 +102,7 @@ def get_box(box_id: str) -> BoxDetail:
     return _box_detail(get_service(), box_id)
 
 
-@router.patch("/boxes/{box_id}", response_model=BoxDetail)
+@router.patch("/boxes/{box_id}", response_model=BoxDetail, dependencies=[Depends(require_admin)])
 def update_box(box_id: str, payload: BoxUpdate) -> BoxDetail:
     """Частичное обновление ящика: название, место, описание.
 
@@ -125,7 +127,7 @@ def update_box(box_id: str, payload: BoxUpdate) -> BoxDetail:
     return _box_detail(service, box_id)
 
 
-@router.delete("/boxes/{box_id}", response_model=TrashEntryOut)
+@router.delete("/boxes/{box_id}", response_model=TrashEntryOut, dependencies=[Depends(require_admin)])
 def delete_box(box_id: str) -> TrashEntryOut:
     """Убирает ящик в корзину; вещи остаются с прежним Ящик_ID."""
     service = get_service()

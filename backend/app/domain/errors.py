@@ -21,3 +21,11 @@ class NotFoundError(StorageError):
 
 class ConflictError(StorageError):
     """Запись конфликтует с уже существующей (дубликат имени; в API — 409)."""
+
+
+class AuthError(StorageError):
+    """Не выполнен вход в систему или сессия недействительна (в API — 401)."""
+
+
+class ForbiddenError(StorageError):
+    """Операция требует роли «администратор» (в API — 403)."""

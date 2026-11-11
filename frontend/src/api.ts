@@ -1,11 +1,23 @@
 /* REST-клиент: типы повторяют схемы backend/app/api/schemas.py (snake_case),
-   ошибки API — {"detail": "текст"} и показываются пользователю как есть. */
+   ошибки API — {"detail": "текст"} и показываются пользователю как есть.
+   Сессия живёт в HttpOnly-cookie: все запросы ходят с credentials: "include". */
 
 export interface Stats {
   boxes: number;
   items: number;
   units: number;
   locations: number;
+}
+
+export type UserRole = "admin" | "viewer";
+
+export interface User {
+  id: string;
+  login: string;
+  role: UserRole;
+  is_admin: boolean;
+  blocked: boolean;
+  created_at: string;
 }
 
 export interface Location {
@@ -68,6 +80,11 @@ export interface ItemSaveRow {
   notes: string;
 }
 
+export interface CategoryMutationResult {
+  name: string;
+  items_updated: number;
+}
+
 export const API_URL: string = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 export class ApiError extends Error {
@@ -84,10 +101,17 @@ export function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/* Событие: сервер ответил 401 вне страницы входа — провайдер авторизации
+   сбрасывает пользователя, роутер перенаправляет на форму входа. */
+export const UNAUTHORIZED_EVENT = "home-storage:unauthorized";
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, init);
+    response = await fetch(`${API_URL}${path}`, {
+      credentials: "include",
+      ...init,
+    });
   } catch {
     throw new ApiError(
       0,
@@ -95,6 +119,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     );
   }
   if (!response.ok) {
+    if (response.status === 401 && !path.startsWith("/api/auth/")) {
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+    }
     let detail = `API вернул статус ${response.status}`;
     try {
       const body: unknown = await response.json();
@@ -236,6 +263,24 @@ export const deleteItems = (ids: string[]) =>
 export const saveItemsTable = (rows: ItemSaveRow[]) =>
   request<{ saved: number }>("/api/items", jsonInit("PUT", { items: rows }));
 
+/* Категории адресуются именем в теле/параметре (не в пути):
+   названия могут содержать «/» и любые символы. */
+
+export const createCategory = (name: string) =>
+  request<CategoryMutationResult>("/api/categories", jsonInit("POST", { name }));
+
+export const renameCategory = (name: string, newName: string) =>
+  request<CategoryMutationResult>(
+    "/api/categories",
+    jsonInit("PATCH", { name, new_name: newName }),
+  );
+
+export const deleteCategory = (name: string) =>
+  request<CategoryMutationResult>(
+    `/api/categories?name=${encodeURIComponent(name)}`,
+    { method: "DELETE" },
+  );
+
 export const restoreFromTrash = (kind: TrashKind, id: string) =>
   request<{ name: string }>(
     `/api/trash/${kind}/${encodeURIComponent(id)}/restore`,
@@ -247,6 +292,44 @@ export const clearTrash = () =>
 
 export const createBackup = () =>
   request<{ path: string }>("/api/backup", { method: "POST" });
+
+/* --------------------------- Авторизация --------------------------------- */
+
+export const register = (login: string, password: string) =>
+  request<User>("/api/auth/register", jsonInit("POST", { login, password }));
+
+export const login = (login: string, password: string) =>
+  request<User>("/api/auth/login", jsonInit("POST", { login, password }));
+
+export const logout = () => request<void>("/api/auth/logout", { method: "POST" });
+
+export const fetchMe = () => request<User>("/api/auth/me");
+
+/* ------------------- Управление пользователями (админ) ------------------- */
+
+export const fetchUsers = () => request<User[]>("/api/users");
+
+export interface UserInput {
+  login: string;
+  password: string;
+  role: UserRole;
+}
+
+export const createUser = (payload: UserInput) =>
+  request<User>("/api/users", jsonInit("POST", payload));
+
+export interface UserPatch {
+  login?: string;
+  password?: string;
+  role?: UserRole;
+  blocked?: boolean;
+}
+
+export const updateUser = (id: string, payload: UserPatch) =>
+  request<User>(`/api/users/${encodeURIComponent(id)}`, jsonInit("PATCH", payload));
+
+export const deleteUser = (id: string) =>
+  request<void>(`/api/users/${encodeURIComponent(id)}`, { method: "DELETE" });
 
 /* --------------------------- Формат данных ------------------------------- */
 

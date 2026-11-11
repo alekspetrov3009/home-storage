@@ -21,7 +21,7 @@ from app.domain.trash import DeletedEntry
 
 _TTL_SECONDS = 30
 
-_READ_METHODS = ("load_boxes", "load_items", "load_locations", "load_trash")
+_READ_METHODS = ("load_boxes", "load_items", "load_locations", "load_trash", "load_categories")
 
 
 class CachedRepository:
@@ -58,6 +58,9 @@ class CachedRepository:
     def load_trash(self) -> pd.DataFrame:
         return self._cached_read("load_trash", self._repo.load_trash)
 
+    def load_categories(self) -> pd.DataFrame:
+        return self._cached_read("load_categories", self._repo.load_categories)
+
     # --- Запись (мимо кэша) --------------------------------------------- #
 
     def add_location(self, name: str, description: str) -> str:
@@ -93,6 +96,15 @@ class CachedRepository:
     def replace_items(self, df: pd.DataFrame) -> None:
         self._repo.replace_items(df)
 
+    def add_category(self, name: str) -> None:
+        self._repo.add_category(name)
+
+    def rename_category(self, old: str, new: str) -> int:
+        return self._repo.rename_category(old, new)
+
+    def delete_category(self, name: str) -> int:
+        return self._repo.delete_category(name)
+
     def trash_add(self, kind: str, record: Mapping[str, Any], parent_id: str = "") -> None:
         self._repo.trash_add(kind, record, parent_id)
 
@@ -104,6 +116,30 @@ class CachedRepository:
 
     def trash_purge_expired(self, cutoff: datetime) -> int:
         return self._repo.trash_purge_expired(cutoff)
+
+    # --- Пользователи и сессии (мимо кэша: проверка доступа на каждом
+    # --- запросе должна видеть актуальное состояние блокировок) --------- #
+
+    def load_users(self) -> pd.DataFrame:
+        return self._repo.load_users()
+
+    def add_user(self, user_id: str, login: str, password_hash: str, role: str) -> None:
+        self._repo.add_user(user_id, login, password_hash, role)
+
+    def update_user(self, user_id: str, fields: dict[str, Any]) -> None:
+        self._repo.update_user(user_id, fields)
+
+    def delete_user(self, user_id: str) -> str:
+        return self._repo.delete_user(user_id)
+
+    def add_session(self, token: str, user_id: str) -> None:
+        self._repo.add_session(token, user_id)
+
+    def delete_session(self, token: str) -> None:
+        self._repo.delete_session(token)
+
+    def find_session_user(self, token: str) -> dict[str, Any] | None:
+        return self._repo.find_session_user(token)
 
     def backup_file(self) -> str:
         return self._repo.backup_file()

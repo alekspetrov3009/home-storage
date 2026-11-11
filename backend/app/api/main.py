@@ -11,7 +11,14 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes import api_router
 from app.config import get_config
-from app.domain.errors import ConflictError, NotFoundError, StorageError, ValidationError
+from app.domain.errors import (
+    AuthError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    StorageError,
+    ValidationError,
+)
 
 
 def _detail(status_code: int):
@@ -31,7 +38,8 @@ def create_app() -> FastAPI:
 
     Starlette ищет хендлер по MRO: ValidationError/NotFoundError/ConflictError —
     подклассы StorageError, поэтому каждый тип получает свой статус (400/404/409),
-    а прочие сбои хранилища — 503. Порядок объявления не важен.
+    AuthError/ForbiddenError — 401/403, а прочие сбои хранилища — 503.
+    Порядок объявления не важен.
     """
     app = FastAPI(title="Домашний склад API")
     app.add_middleware(
@@ -44,6 +52,8 @@ def create_app() -> FastAPI:
     app.exception_handler(ValidationError)(_detail(400))
     app.exception_handler(NotFoundError)(_detail(404))
     app.exception_handler(ConflictError)(_detail(409))
+    app.exception_handler(AuthError)(_detail(401))
+    app.exception_handler(ForbiddenError)(_detail(403))
     app.exception_handler(StorageError)(_detail(503))
     app.include_router(api_router)
     return app

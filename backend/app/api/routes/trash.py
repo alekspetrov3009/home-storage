@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
+
+from app.api.deps import require_admin, require_auth
 
 from app.api.schemas import (
     BackupResponse,
@@ -16,7 +18,7 @@ from app.api.schemas import (
 from app.context import get_service
 from app.domain.errors import ValidationError
 
-router = APIRouter(prefix="/api", tags=["trash"])
+router = APIRouter(prefix="/api", tags=["trash"], dependencies=[Depends(require_auth)])
 
 
 @router.get("/trash", response_model=TrashResponse)
@@ -31,7 +33,7 @@ def list_trash() -> TrashResponse:
     )
 
 
-@router.post("/trash/{kind}/{entity_id}/restore", response_model=RestoredResponse)
+@router.post("/trash/{kind}/{entity_id}/restore", response_model=RestoredResponse, dependencies=[Depends(require_admin)])
 def restore(kind: str, entity_id: str) -> RestoredResponse:
     """Возвращает запись из корзины на исходный лист. kind ∈ item/box/location."""
     russian_kind = SLUG_KIND.get(kind)
@@ -43,7 +45,7 @@ def restore(kind: str, entity_id: str) -> RestoredResponse:
     return RestoredResponse(name=name)
 
 
-@router.delete("/trash", response_model=ClearedResponse)
+@router.delete("/trash", response_model=ClearedResponse, dependencies=[Depends(require_admin)])
 def clear_trash() -> ClearedResponse:
     """Полностью опустошает корзину."""
     service = get_service()
@@ -52,13 +54,13 @@ def clear_trash() -> ClearedResponse:
     return ClearedResponse(deleted=deleted)
 
 
-@router.post("/backup", response_model=BackupResponse)
+@router.post("/backup", response_model=BackupResponse, dependencies=[Depends(require_admin)])
 def backup() -> BackupResponse:
     """Создаёт копию файла данных рядом с оригиналом."""
     return BackupResponse(path=get_service().backup_file())
 
 
-@router.post("/cache/clear", status_code=204, response_class=Response)
+@router.post("/cache/clear", status_code=204, response_class=Response, dependencies=[Depends(require_admin)])
 def clear_cache() -> Response:
     """Сбрасывает кэш чтений (30 секунд) после внешних изменений файла."""
     get_service().clear_cache()

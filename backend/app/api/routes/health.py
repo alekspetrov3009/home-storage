@@ -7,8 +7,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.api.deps import require_auth
 from app.api.schemas import HealthResponse, StatsResponse
 from app.context import get_service
 from app.helpers import qty_total
@@ -18,11 +19,11 @@ router = APIRouter(prefix="/api", tags=["service"])
 
 @router.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    """Проверка живости API."""
+    """Проверка живости API (публичная — без данных склада)."""
     return HealthResponse(status="ok")
 
 
-@router.get("/stats", response_model=StatsResponse)
+@router.get("/stats", response_model=StatsResponse, dependencies=[Depends(require_auth)])
 def stats() -> StatsResponse:
     """Сводная статистика: ящики, вещи, единицы и места хранения."""
     service = get_service()

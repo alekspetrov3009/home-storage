@@ -546,6 +546,11 @@ a:hover {
   color: var(--warning);
 }
 
+.badge-success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
 /* ------------------------ 8. Карточки сущностей -------------------------- */
 
 .item-card {
@@ -920,6 +925,76 @@ a:hover {
   white-space: nowrap;
 }
 
+/* --------------------- 12а. Настройки ------------------------------------ */
+/* Страница /settings: справочник категорий; новые разделы — ниже по схеме. */
+
+.settings-add {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.settings-add .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px 10px;
+  border-radius: 10px;
+}
+
+.category-row:hover {
+  background: var(--surface2);
+}
+
+.category-row .category-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-row .btn-sm {
+  opacity: 0.6;
+  flex: none;
+}
+
+.category-row:hover .btn-sm,
+.category-row .btn-sm:focus-visible {
+  opacity: 1;
+}
+
+.category-row .input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 10px;
+}
+
+.settings-note {
+  margin: 14px 0 0;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.topbar-settings-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 /* --------------------- 13. Состояния ------------------------------------- */
 
 .empty {
@@ -1239,4 +1314,153 @@ a:hover {
     top: calc(var(--topbar-h) + 8px);
     width: calc(100vw - 24px);
   }
+}
+
+/* --------------------- 12. Авторизация ----------------------------------- */
+
+/* Страница входа/регистрации: единственный маршрут без sidebar — карточка
+   по центру экрана в эстетике приложения. */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+}
+
+.auth-card {
+  width: min(400px, 100%);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-rest);
+  padding: 32px 28px;
+}
+
+.auth-brand {
+  font-size: 2rem;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.auth-card h1 {
+  margin: 0 0 4px;
+  font-size: 1.35rem;
+}
+
+.auth-card > p.dim {
+  margin: 0 0 20px;
+}
+
+.auth-tabs {
+  margin-bottom: 20px;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.auth-note {
+  margin: 16px 0 0;
+}
+
+/* Спиннер-заглушка, пока проверяется сессия перед первым экраном. */
+.auth-loading {
+  min-height: 100vh;
+}
+
+.auth-loading::after {
+  content: "";
+  display: block;
+  width: 28px;
+  height: 28px;
+  margin: 40vh auto 0;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  animation: auth-spin 0.8s linear infinite;
+}
+
+@keyframes auth-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-loading::after {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}
+
+/* Блок текущего пользователя в подвале sidebar. */
+.user-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+}
+
+.user-login {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-role {
+  font-size: 0.8rem;
+}
+
+/* Таблица пользователей (страница /users, только администратор). */
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.users-table th {
+  text-align: left;
+  padding: 8px 12px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+
+.users-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.users-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.users-login {
+  font-weight: 600;
+}
+
+.users-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.users-actions .btn + .btn {
+  margin-left: 6px;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 12px;
+  cursor: pointer;
 }

@@ -8,6 +8,7 @@ import {
   type LocationPatch,
 } from "../api";
 import { useApi } from "../useApi";
+import { useAuth } from "../auth";
 import {
   Badge,
   Card,
@@ -24,6 +25,7 @@ import {
 
 export default function Locations() {
   const locations = useApi(fetchLocations);
+  const { isAdmin } = useAuth();
   const bump = useBump();
   const toast = useToast();
   const undo = useUndo();
@@ -57,9 +59,11 @@ export default function Locations() {
           <h1>Места хранения</h1>
           <p className="page-sub">Комнаты и зоны, где стоят ящики</p>
         </div>
-        <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-          ＋ Добавить место
-        </button>
+        {isAdmin && (
+          <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+            ＋ Добавить место
+          </button>
+        )}
       </div>
 
       {locations.error && <ErrorState message={locations.error} />}
@@ -71,9 +75,11 @@ export default function Locations() {
             title="Мест пока нет"
             hint="Создайте первое место — например, «Кладовка» или «Балкон»."
             action={
-              <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-                ＋ Добавить место
-              </button>
+              isAdmin ? (
+                <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
+                  ＋ Добавить место
+                </button>
+              ) : undefined
             }
           />
         ) : (
@@ -87,22 +93,24 @@ export default function Locations() {
                   </Badge>
                 </div>
                 {location.description && <p className="dim">{location.description}</p>}
-                <div className="row mt-8">
-                  <button
-                    type="button"
-                    className="btn btn-outline btn-sm"
-                    onClick={() => setEditing(location)}
-                  >
-                    ✏️ Редактировать
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-danger btn-sm"
-                    onClick={() => setPending(location)}
-                  >
-                    🗑 Удалить
-                  </button>
-                </div>
+                {isAdmin && (
+                  <div className="row mt-8">
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => setEditing(location)}
+                    >
+                      ✏️ Редактировать
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-danger btn-sm"
+                      onClick={() => setPending(location)}
+                    >
+                      🗑 Удалить
+                    </button>
+                  </div>
+                )}
               </Card>
             ))}
           </div>

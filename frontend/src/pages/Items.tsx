@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchBoxes, fetchItems, fetchLocations, type Box, type Item } from "../api";
 import { useApi } from "../useApi";
+import { useAuth } from "../auth";
 import {
   Card,
   Chip,
@@ -32,7 +33,9 @@ function savedView(): View {
 }
 
 export default function Items() {
-  const [view, setView] = useState<View>(savedView);
+  const { isAdmin } = useAuth();
+  // Bulk-таблица — инструмент правки: роль «просмотр» видит только карточки.
+  const [view, setView] = useState<View>(() => (isAdmin ? savedView() : "cards"));
   const [locationFilter, setLocationFilter] = useState("");
   const [boxFilter, setBoxFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -164,13 +167,15 @@ export default function Items() {
           >
             Карточки
           </button>
-          <button
-            type="button"
-            className={`segmented-btn${view === "table" ? " active" : ""}`}
-            onClick={() => setView("table")}
-          >
-            Таблица
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className={`segmented-btn${view === "table" ? " active" : ""}`}
+              onClick={() => setView("table")}
+            >
+              Таблица
+            </button>
+          )}
         </span>
       </div>
 
@@ -255,9 +260,11 @@ export default function Items() {
                   title="Пока нет ни одной вещи"
                   hint="Добавьте первую вещь на склад."
                   action={
-                    <Link to="/add" className="btn btn-primary">
-                      ＋ Добавить вещь
-                    </Link>
+                    isAdmin ? (
+                      <Link to="/add" className="btn btn-primary">
+                        ＋ Добавить вещь
+                      </Link>
+                    ) : undefined
                   }
                 />
               )

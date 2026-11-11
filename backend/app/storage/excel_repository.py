@@ -37,13 +37,19 @@ from app.storage import schema
 from app.storage.migration import migrate_box_color_column, migrate_legacy_boxes
 from app.storage.schema import (
     BOX_HEADERS,
+    CATEGORY_HEADERS,
     ITEM_HEADERS,
     LOCATION_HEADERS,
+    SESSION_HEADERS,
     SHEET_BOXES,
+    SHEET_CATEGORIES,
     SHEET_ITEMS,
     SHEET_LOCATIONS,
+    SHEET_SESSIONS,
     SHEET_TRASH,
+    SHEET_USERS,
     TRASH_HEADERS,
+    USER_HEADERS,
     ensure_worksheet,
     rows_to_frame,
 )
@@ -601,6 +607,267 @@ class ExcelRepository:
                     ]
                 )
             self._save_workbook(wb)
+
+    # ------------------------------------------------------------------ #
+    # Категории (справочник настроек)
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _categories_frame(ws: Worksheet) -> pd.DataFrame:
+        """Лист «Категории» (один столбец «Название») в DataFrame.
+
+        Отдельный читатель вместо ``rows_to_frame``: тот пропускает строки
+        с пустым «ID», а у категорий колонки ID нет — только название.
+        """
+        names: list[str] = []
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row is None:
+                continue
+            value = str(row[0]).strip() if row[0] is not None else ""
+            if value and value.lower() != "nan":
+                names.append(value)
+        if not names:
+            return schema.empty_frame(CATEGORY_HEADERS)
+        return pd.DataFrame({CATEGORY_HEADERS[0]: names})
+
+    def load_categories(self) -> pd.DataFrame:
+        """Категории, сохранённые в справочнике. Лист создаётся лениво
+        (при первой добавленной категории), при чтении — не создаётся."""
+        with self._lock:
+            wb = self._load_workbook()
+            if SHEET_CATEGORIES not in wb.sheetnames:
+                return schema.empty_frame(CATEGORY_HEADERS)
+            ws, dirty = ensure_worksheet(wb, SHEET_CATEGORIES, CATEGORY_HEADERS)
+            if dirty:
+                self._save_workbook(wb)
+            return self._categories_frame(ws)
+
+    def add_category(self, name: str) -> None:
+        """Добавляет категорию в справочник.
+
+        Одноимённые (без учёта регистра) запрещены; дубликат среди вещей
+        проверяет сервис — здесь страховка на случай гонки двух записей.
+        """
+        with self._lock:
+            wb = self._load_workbook()
+            ws, _ = ensure_worksheet(wb, SHEET_CATEGORIES, CATEGORY_HEADERS)
+            clean = name.strip()
+            existing = {
+                str(row[0]).strip().lower()
+                for row in ws.iter_rows(min_row=2, values_only=True)
+                if row and row[0] is not None
+            }
+            if clean.lower() in existing:
+                raise ConflictError(f"Категория «{clean}» уже существует.")
+            ws.append([clean])
+            self._save_workbook(wb)
+
+    def rename_category(self, old: str, new: str) -> int:
+        """Переименовывает категорию в справочнике и у всех вещей.
+
+        Совпадение без учёта регистра; вещи получают новое написание
+        целиком (регистровые дубли схлопываются). Колонку «Обновлён»
+        не трогает: это операция справочника, а не правка вещи.
+        Возвращает число вещей с изменившейся категорией.
+        """
+        with self._lock:
+            wb = self._load_workbook()
+            old_lower = old.strip().lower()
+            new_clean = new.strip()
+            changed = False
+            updated = 0
+
+            items_ws, _ = ensure_worksheet(wb, SHEET_ITEMS, ITEM_HEADERS)
+            category_column = ITEM_HEADERS.index("Категория") + 1
+            for row_idx in range(2, items_ws.max_row + 1):
+                cell = items_ws.cell(row=row_idx, column=category_column)
+                if cell.value is not None and str(cell.value).strip().lower() == old_lower:
+                    cell.value = new_clean
+                    updated += 1
+                    changed = True
+
+            if SHEET_CATEGORIES in wb.sheetnames:
+                cat_ws = wb[SHEET_CATEGORIES]
+                for row_idx in range(2, cat_ws.max_row + 1):
+                    cell = cat_ws.cell(row=row_idx, column=1)
+                    if cell.value is not None and str(cell.value).strip().lower() == old_lower:
+                        cell.value = new_clean
+                        changed = True
+
+            if changed:
+                self._save_workbook(wb)
+            return updated
+
+    def delete_category(self, name: str) -> int:
+        """Удаляет категорию из справочника; у вещей она становится пустой
+        («без категории»). Корзину не задействует: категория — это метка,
+        а не запись склада. Возвращает число вещей с очищенной категорией.
+        """
+        with self._lock:
+            wb = self._load_workbook()
+            name_lower = name.strip().lower()
+            changed = False
+            cleared = 0
+
+            items_ws, _ = ensure_worksheet(wb, SHEET_ITEMS, ITEM_HEADERS)
+            category_column = ITEM_HEADERS.index("Категория") + 1
+            for row_idx in range(2, items_ws.max_row + 1):
+                cell = items_ws.cell(row=row_idx, column=category_column)
+                if cell.value is not None and str(cell.value).strip().lower() == name_lower:
+                    cell.value = ""
+                    cleared += 1
+                    changed = True
+
+            if SHEET_CATEGORIES in wb.sheetnames:
+                cat_ws = wb[SHEET_CATEGORIES]
+                # Снизу вверх: удаление строки сдвигает индексы последующих.
+                for row_idx in range(cat_ws.max_row, 1, -1):
+                    cell = cat_ws.cell(row=row_idx, column=1)
+                    if cell.value is not None and str(cell.value).strip().lower() == name_lower:
+                        cat_ws.delete_rows(row_idx)
+                        changed = True
+
+            if changed:
+                self._save_workbook(wb)
+            return cleared
+
+    # ------------------------------------------------------------------ #
+    # Пользователи и сессии (регистрация, вход, управление доступом)
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _users_frame(ws: Worksheet) -> pd.DataFrame:
+        """Лист «Пользователи» в DataFrame (пустой, если только шапка)."""
+        return rows_to_frame(ws, USER_HEADERS)
+
+    def load_users(self) -> pd.DataFrame:
+        """Все учётные записи. Лист создаётся лениво (при первой регистрации),
+        при чтении — не создаётся."""
+        with self._lock:
+            wb = self._load_workbook()
+            if SHEET_USERS not in wb.sheetnames:
+                return schema.empty_frame(USER_HEADERS)
+            ws, dirty = ensure_worksheet(wb, SHEET_USERS, USER_HEADERS)
+            if dirty:
+                self._save_workbook(wb)
+            return self._users_frame(ws)
+
+    def add_user(
+        self, user_id: str, login: str, password_hash: str, role: str
+    ) -> None:
+        """Создаёт учётную запись. Логин-дубликат (без учёта регистра) — 409."""
+        with self._lock:
+            wb = self._load_workbook()
+            ws, _ = ensure_worksheet(wb, SHEET_USERS, USER_HEADERS)
+            clean = login.strip()
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if row and row[1] is not None and str(row[1]).strip().lower() == clean.lower():
+                    raise ConflictError(f"Логин «{clean}» уже занят.")
+            ws.append([user_id, clean, password_hash, role, now_str(), ""])
+            self._save_workbook(wb)
+
+    def update_user(self, user_id: str, fields: dict[str, Any]) -> None:
+        """Точечно обновляет поля учётной записи: логин, хеш, роль, блокировка.
+
+        Переименование соблюдает инвариант создания: занятый логин (без
+        учёта регистра, кроме самого себя) — 409.
+        """
+        unknown = set(fields) - set(USER_HEADERS)
+        if unknown:
+            raise StorageError(f"Неизвестные поля: {', '.join(sorted(unknown))}")
+
+        with self._lock:
+            wb = self._load_workbook()
+            ws, _ = ensure_worksheet(wb, SHEET_USERS, USER_HEADERS)
+            row = schema.row_index(ws, user_id)
+            if row is None:
+                raise NotFoundError(f"Пользователь с ID {user_id} не найден.")
+
+            if "Логин" in fields:
+                new_login = str(fields["Логин"]).strip()
+                for other in ws.iter_rows(min_row=2, values_only=True):
+                    if (
+                        other
+                        and other[0] is not None
+                        and str(other[0]) != str(user_id)
+                        and other[1] is not None
+                        and str(other[1]).strip().lower() == new_login.lower()
+                    ):
+                        raise ConflictError(f"Логин «{new_login}» уже занят.")
+
+            for column, value in fields.items():
+                ws.cell(row=row, column=USER_HEADERS.index(column) + 1, value=value)
+            self._save_workbook(wb)
+
+    def delete_user(self, user_id: str) -> str:
+        """Удаляет учётную запись и её сессии. Возвращает логин."""
+        with self._lock:
+            wb = self._load_workbook()
+            ws, _ = ensure_worksheet(wb, SHEET_USERS, USER_HEADERS)
+            row = schema.row_index(ws, user_id)
+            if row is None:
+                raise NotFoundError(f"Пользователь с ID {user_id} не найден.")
+            login = str(ws.cell(row=row, column=2).value or "")
+            ws.delete_rows(row)
+
+            if SHEET_SESSIONS in wb.sheetnames:
+                sessions_ws = wb[SHEET_SESSIONS]
+                # Снизу вверх: удаление строки сдвигает индексы последующих.
+                user_column = SESSION_HEADERS.index("ID_Пользователя") + 1
+                for session_row in range(sessions_ws.max_row, 1, -1):
+                    cell = sessions_ws.cell(row=session_row, column=user_column)
+                    if cell.value is not None and str(cell.value) == str(user_id):
+                        sessions_ws.delete_rows(session_row)
+
+            self._save_workbook(wb)
+            return login
+
+    def add_session(self, token: str, user_id: str) -> None:
+        """Создаёт сессию (токен-cookie → пользователь) на листе «Сессии»."""
+        with self._lock:
+            wb = self._load_workbook()
+            ws, _ = ensure_worksheet(wb, SHEET_SESSIONS, SESSION_HEADERS)
+            ws.append([token, str(user_id), now_str()])
+            self._save_workbook(wb)
+
+    def delete_session(self, token: str) -> None:
+        """Удаляет сессию (выход пользователя). Отсутствующий токен — не ошибка."""
+        with self._lock:
+            wb = self._load_workbook()
+            if SHEET_SESSIONS not in wb.sheetnames:
+                return
+            ws = wb[SHEET_SESSIONS]
+            for row_idx, row in enumerate(
+                ws.iter_rows(min_row=2, values_only=True), start=2
+            ):
+                if row and str(row[0]) == str(token):
+                    ws.delete_rows(row_idx)
+                    self._save_workbook(wb)
+                    return
+
+    def find_session_user(self, token: str) -> dict[str, Any] | None:
+        """Пользователь по токену сессии (соединение листов под одним чтением).
+
+        None, если сессии нет или её учётная запись удалена. Блокировку
+        проверяет сервис: сессия остаётся, а доступ закрывается динамически.
+        """
+        with self._lock:
+            wb = self._load_workbook()
+            if SHEET_SESSIONS not in wb.sheetnames or SHEET_USERS not in wb.sheetnames:
+                return None
+            sessions_ws = wb[SHEET_SESSIONS]
+            user_id = None
+            for row in sessions_ws.iter_rows(min_row=2, values_only=True):
+                if row and str(row[0]) == str(token):
+                    user_id = str(row[1]) if len(row) > 1 else ""
+                    break
+            if not user_id:
+                return None
+            users_ws = wb[SHEET_USERS]
+            user_row = schema.row_index(users_ws, user_id)
+            if user_row is None:
+                return None
+            return self._sheet_record(users_ws, user_row, USER_HEADERS)
 
     # ------------------------------------------------------------------ #
     # Обслуживание

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { createBackup } from "../api";
+import { useAuth } from "../auth";
 import { useToast } from "./ui";
 import { useTheme } from "../theme";
 
@@ -12,6 +13,11 @@ const NAV = [
   { to: "/trash", icon: "🗑", label: "Корзина" },
 ];
 
+const ADMIN_NAV = [
+  { to: "/settings", icon: "⚙️", label: "Настройки" },
+  { to: "/users", icon: "👥", label: "Пользователи" },
+];
+
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [params] = useSearchParams();
@@ -20,6 +26,7 @@ export default function Layout() {
   const location = useLocation();
   const toast = useToast();
   const { theme, toggle } = useTheme();
+  const { user, isAdmin, logout } = useAuth();
 
   useEffect(() => {
     setQuery(params.get("q") ?? "");
@@ -42,6 +49,14 @@ export default function Layout() {
       toast(`Копия создана: ${path}`);
     } catch (err) {
       toast(err instanceof Error ? err.message : String(err), "error");
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      await logout();
+    } finally {
+      navigate("/login", { replace: true });
     }
   };
 
@@ -73,14 +88,44 @@ export default function Layout() {
               {item.label}
             </NavLink>
           ))}
+          {isAdmin &&
+            ADMIN_NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) => `nav-link${isActive ? " active" : ""}`}
+              >
+                <span className="nav-icon" aria-hidden="true">
+                  {item.icon}
+                </span>
+                {item.label}
+              </NavLink>
+            ))}
         </nav>
         <div className="sidebar-footer">
+          <div className="user-box">
+            <span className="user-login" title={user?.login}>
+              {user?.login ?? ""}
+            </span>
+            <span className="user-role dim">
+              {isAdmin ? "администратор" : "просмотр"}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => void signOut()}
+          >
+            🚪 Выйти
+          </button>
           <button type="button" className="btn btn-ghost" onClick={toggle}>
             {theme === "dark" ? "☀️ Светлая тема" : "🌙 Тёмная тема"}
           </button>
-          <button type="button" className="btn btn-ghost" onClick={makeBackup}>
-            💾 Резервная копия
-          </button>
+          {isAdmin && (
+            <button type="button" className="btn btn-ghost" onClick={makeBackup}>
+              💾 Резервная копия
+            </button>
+          )}
           <p className="sidebar-note dim">Данные — локальный Excel-файл.</p>
         </div>
       </aside>
@@ -106,9 +151,23 @@ export default function Layout() {
             />
           </form>
           <div className="topbar-actions">
-            <NavLink to={addTarget} className="btn btn-primary">
-              ＋<span className="add-text">&nbsp;Добавить</span>
-            </NavLink>
+            {isAdmin && (
+              <NavLink
+                to="/settings"
+                className={({ isActive }) =>
+                  `btn btn-ghost${isActive ? " topbar-settings-active" : ""}`
+                }
+                aria-label="Настройки"
+                title="Настройки"
+              >
+                ⚙️
+              </NavLink>
+            )}
+            {isAdmin && (
+              <NavLink to={addTarget} className="btn btn-primary">
+                ＋<span className="add-text">&nbsp;Добавить</span>
+              </NavLink>
+            )}
           </div>
         </header>
         <main className="page">

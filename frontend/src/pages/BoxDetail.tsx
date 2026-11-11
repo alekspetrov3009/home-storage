@@ -9,6 +9,7 @@ import {
   type BoxPatch,
 } from "../api";
 import { useApi } from "../useApi";
+import { useAuth } from "../auth";
 import {
   Card,
   Chip,
@@ -41,6 +42,7 @@ function BoxDetailById({ boxId }: { boxId: string }) {
   const bump = useBump();
   const toast = useToast();
   const undo = useUndo();
+  const { isAdmin } = useAuth();
   const [confirming, setConfirming] = useState(false);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -123,12 +125,16 @@ function BoxDetailById({ boxId }: { boxId: string }) {
           </div>
         </div>
         <div className="row">
-          <button type="button" className="btn btn-outline" onClick={() => setEditing(true)}>
-            ✏️ Редактировать
-          </button>
-          <button type="button" className="btn btn-danger" onClick={() => setConfirming(true)}>
-            🗑 Удалить ящик
-          </button>
+          {isAdmin && (
+            <>
+              <button type="button" className="btn btn-outline" onClick={() => setEditing(true)}>
+                ✏️ Редактировать
+              </button>
+              <button type="button" className="btn btn-danger" onClick={() => setConfirming(true)}>
+                🗑 Удалить ящик
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -142,9 +148,11 @@ function BoxDetailById({ boxId }: { boxId: string }) {
               title="Ящик пуст"
               hint="Добавьте вещь — этот ящик будет выбран автоматически."
               action={
-                <Link to={`/add?box=${encodeURIComponent(data.id)}`} className="btn btn-primary">
-                  ＋ Добавить вещь
-                </Link>
+                isAdmin ? (
+                  <Link to={`/add?box=${encodeURIComponent(data.id)}`} className="btn btn-primary">
+                    ＋ Добавить вещь
+                  </Link>
+                ) : undefined
               }
             />
           ) : (

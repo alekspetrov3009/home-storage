@@ -9,6 +9,7 @@ import {
   type TrashEntry,
 } from "../api";
 import { useApi } from "../useApi";
+import { useAuth } from "../auth";
 import {
   Badge,
   Card,
@@ -47,6 +48,7 @@ export default function Trash() {
   const trash = useApi(fetchTrash);
   const boxes = useApi(fetchBoxes);
   const locations = useApi(fetchLocations);
+  const { isAdmin } = useAuth();
   const bump = useBump();
   const toast = useToast();
 
@@ -93,7 +95,7 @@ export default function Trash() {
               : ""}
           </p>
         </div>
-        {trash.data && trash.data.entries.length > 0 && (
+        {isAdmin && trash.data && trash.data.entries.length > 0 && (
           <div className="row">
             {!armed ? (
               <button type="button" className="btn btn-danger" onClick={() => setArmed(true)}>
@@ -146,15 +148,17 @@ export default function Trash() {
                 </div>
                 <p className="dim">{originLabel(entry, boxNames, locationNames)}</p>
                 <p className="dim num">Удалено: {formatDate(entry.deleted_at)}</p>
-                <div className="row mt-8">
-                  <button
-                    type="button"
-                    className="btn btn-outline btn-sm"
-                    onClick={() => restore(entry)}
-                  >
-                    ↩️ Восстановить
-                  </button>
-                </div>
+                {isAdmin && (
+                  <div className="row mt-8">
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => restore(entry)}
+                    >
+                      ↩️ Восстановить
+                    </button>
+                  </div>
+                )}
               </Card>
             ))}
           </div>

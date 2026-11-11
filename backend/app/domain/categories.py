@@ -45,6 +45,37 @@ def category_options(items: pd.DataFrame) -> list[str]:
     return unique_categories(items["Категория"].tolist())
 
 
+def combined_categories(stored: Iterable[Any], used: Iterable[Any]) -> list[str]:
+    """Справочник категорий: сохранённые отдельно + используемые у вещей.
+
+    Категории могут существовать и без вещей (добавлены заранее через
+    настройки), поэтому справочник — объединение двух источников. Дедуп
+    и сортировка те же, что у списка из вещей: без учёта регистра, по
+    алфавиту, каноническим считается первое встретившееся написание.
+    """
+    return unique_categories([*stored, *used])
+
+
+def find_category(name: str, options: Iterable[Any]) -> str | None:
+    """Каноническое написание категории без учёта регистра, либо None."""
+    lowered = str(name or "").strip().lower()
+    if not lowered:
+        return None
+    for option in options:
+        canonical = str(option).strip()
+        if canonical.lower() == lowered:
+            return canonical
+    return None
+
+
+def validate_category_name(value: str) -> str:
+    """Проверяет имя категории справочника: непустое после обрезки пробелов."""
+    name = str(value or "").strip()
+    if not name:
+        raise ValidationError("Укажите название категории.")
+    return name
+
+
 def normalize_category(value: str, options: list[str]) -> str:
     """Свободный ввод категории: обрезает пробелы, пустое — «без категории».
 
