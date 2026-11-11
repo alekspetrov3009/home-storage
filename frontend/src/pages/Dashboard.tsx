@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
 import { fetchItems, fetchStats, type Item } from "../api";
 import { useApi } from "../useApi";
+import { useAuth } from "../auth";
 import { Card, EmptyState, ErrorState, Skeleton, SkeletonGrid } from "../components/ui";
 import ItemCard from "../components/ItemCard";
 
 export default function Dashboard() {
+  const { isAdmin } = useAuth();
   const stats = useApi(fetchStats);
   const items = useApi(fetchItems);
 
@@ -20,9 +22,11 @@ export default function Dashboard() {
           <h1>Обзор</h1>
           <p className="page-sub">Сводка по хранилищу</p>
         </div>
-        <Link to="/add" className="btn btn-primary">
-          ＋ Добавить вещь
-        </Link>
+        {isAdmin && (
+          <Link to="/add" className="btn btn-primary">
+            ＋ Добавить вещь
+          </Link>
+        )}
       </div>
 
       {stats.error && <ErrorState message={stats.error} hint="Проверьте, что backend запущен на порту 8000." />}
@@ -42,9 +46,11 @@ export default function Dashboard() {
               <div className="stat-num">{stats.data.units}</div>
               <div className="stat-label">единиц на складе</div>
             </div>
-            <Link to="/add" className="btn btn-primary btn-sm">
-              ＋ Добавить вещь
-            </Link>
+            {isAdmin && (
+              <Link to="/add" className="btn btn-primary btn-sm">
+                ＋ Добавить вещь
+              </Link>
+            )}
           </Card>
           <Card className="stat-tile">
             <div className="stat-num">{stats.data.boxes}</div>
@@ -73,9 +79,11 @@ export default function Dashboard() {
             title="Пока нет ни одной вещи"
             hint="Добавьте первую вещь — она появится здесь."
             action={
-              <Link to="/add" className="btn btn-primary">
-                ＋ Добавить вещь
-              </Link>
+              isAdmin ? (
+                <Link to="/add" className="btn btn-primary">
+                  ＋ Добавить вещь
+                </Link>
+              ) : undefined
             }
           />
         ) : (

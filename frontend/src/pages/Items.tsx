@@ -34,8 +34,8 @@ function savedView(): View {
 
 export default function Items() {
   const { isAdmin } = useAuth();
-  // Bulk-таблица — инструмент правки: роль «просмотр» видит только карточки.
-  const [view, setView] = useState<View>(() => (isAdmin ? savedView() : "cards"));
+  // Таблица доступна всем: админам — bulk-редактор, роли «просмотр» — только чтение.
+  const [view, setView] = useState<View>(savedView);
   const [locationFilter, setLocationFilter] = useState("");
   const [boxFilter, setBoxFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -167,15 +167,13 @@ export default function Items() {
           >
             Карточки
           </button>
-          {isAdmin && (
-            <button
-              type="button"
-              className={`segmented-btn${view === "table" ? " active" : ""}`}
-              onClick={() => setView("table")}
-            >
-              Таблица
-            </button>
-          )}
+          <button
+            type="button"
+            className={`segmented-btn${view === "table" ? " active" : ""}`}
+            onClick={() => setView("table")}
+          >
+            Таблица
+          </button>
         </span>
       </div>
 
@@ -285,13 +283,13 @@ export default function Items() {
         </>
       ) : (
         <>
-          {filtered && (
+          {isAdmin && filtered && (
             <p className="dim mb-16">
               Массовое сохранение перезаписывает весь лист целиком: фильтры таблицы
               скрывают строки только на экране, при сохранении записываются все строки.
             </p>
           )}
-          <ItemsTable />
+          <ItemsTable readOnly={!isAdmin} />
         </>
       )}
     </>

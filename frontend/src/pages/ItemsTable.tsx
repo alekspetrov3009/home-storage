@@ -128,7 +128,7 @@ function CategoryCell({
   );
 }
 
-export default function ItemsTable() {
+export default function ItemsTable({ readOnly = false }: { readOnly?: boolean }) {
   const items = useApi(fetchItems);
   const boxes = useApi(fetchBoxes);
   const locations = useApi(fetchLocations);
@@ -369,20 +369,24 @@ export default function ItemsTable() {
           ))}
           <option value={NO_LOCATION}>— без места —</option>
         </select>
-        <button type="button" className="btn btn-outline" onClick={addRow}>
-          ＋ Добавить строку
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => (dirtyCount > 0 ? setConfirmReset(true) : reset())}
-        >
-          Отмена
-        </button>
-        {dirtyCount > 0 && (
+        {!readOnly && (
+          <button type="button" className="btn btn-outline" onClick={addRow}>
+            ＋ Добавить строку
+          </button>
+        )}
+        {!readOnly && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => (dirtyCount > 0 ? setConfirmReset(true) : reset())}
+          >
+            Отмена
+          </button>
+        )}
+        {!readOnly && dirtyCount > 0 && (
           <Badge tone="warning">Не сохранено изменений: {dirtyCount}</Badge>
         )}
-        {tableFiltered && (
+        {!readOnly && tableFiltered && (
           <Badge tone="muted">
             Показано: {visible.length} из {rows.length} — при сохранении пишется вся таблица
           </Badge>
@@ -395,15 +399,17 @@ export default function ItemsTable() {
         <table className="items-table">
           <thead>
             <tr>
-              <th className="cell-check">
-                <input
-                  ref={allRef}
-                  type="checkbox"
-                  checked={allSelected}
-                  onChange={toggleAll}
-                  aria-label="Выбрать все видимые строки"
-                />
-              </th>
+              {!readOnly && (
+                <th className="cell-check">
+                  <input
+                    ref={allRef}
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    aria-label="Выбрать все видимые строки"
+                  />
+                </th>
+              )}
               <th>Название</th>
               <th>Ящик</th>
               <th>Кол-во</th>
@@ -412,7 +418,7 @@ export default function ItemsTable() {
               <th className="cell-updated">Обновлён</th>
             </tr>
             <tr className="filter-row">
-              <th className="cell-check" />
+              {!readOnly && <th className="cell-check" />}
               <th>
                 <input
                   className="input"
@@ -468,7 +474,7 @@ export default function ItemsTable() {
           <tbody>
             {visible.length === 0 ? (
               <tr>
-                <td colSpan={7} className="table-empty">
+                <td colSpan={readOnly ? 6 : 7} className="table-empty">
                   Под фильтры ничего не подошло.
                 </td>
               </tr>
@@ -478,61 +484,83 @@ export default function ItemsTable() {
                   key={row.id || `new-${index}`}
                   className={isNew(row) ? "row-new" : isChanged(row) ? "row-changed" : ""}
                 >
-                  <td className="cell-check">
-                    <input
-                      type="checkbox"
-                      disabled={isNew(row)}
-                      checked={selected.has(row.id)}
-                      onChange={() => toggleOne(row.id)}
-                      aria-label={`Выбрать «${row.name || "новая строка"}»`}
-                    />
-                  </td>
+                  {!readOnly && (
+                    <td className="cell-check">
+                      <input
+                        type="checkbox"
+                        disabled={isNew(row)}
+                        checked={selected.has(row.id)}
+                        onChange={() => toggleOne(row.id)}
+                        aria-label={`Выбрать «${row.name || "новая строка"}»`}
+                      />
+                    </td>
+                  )}
                   <td className="cell-name">
-                    <input
-                      className="input"
-                      value={row.name}
-                      onChange={(event) => patchRow(index, { name: event.target.value })}
-                      aria-label="Название"
-                    />
+                    {readOnly ? (
+                      row.name
+                    ) : (
+                      <input
+                        className="input"
+                        value={row.name}
+                        onChange={(event) => patchRow(index, { name: event.target.value })}
+                        aria-label="Название"
+                      />
+                    )}
                   </td>
                   <td>
-                    <select
-                      className="select"
-                      value={row.box_id}
-                      onChange={(event) => patchRow(index, { box_id: event.target.value })}
-                      aria-label="Ящик"
-                    >
-                      <option value="">— без ящика —</option>
-                      {(boxes.data ?? []).map((box) => (
-                        <option key={box.id} value={box.id}>
-                          {labels.get(box.id)}
-                        </option>
-                      ))}
-                    </select>
+                    {readOnly ? (
+                      labels.get(row.box_id) ?? "— без ящика —"
+                    ) : (
+                      <select
+                        className="select"
+                        value={row.box_id}
+                        onChange={(event) => patchRow(index, { box_id: event.target.value })}
+                        aria-label="Ящик"
+                      >
+                        <option value="">— без ящика —</option>
+                        {(boxes.data ?? []).map((box) => (
+                          <option key={box.id} value={box.id}>
+                            {labels.get(box.id)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </td>
                   <td className="cell-qty">
-                    <input
-                      className="input num"
-                      inputMode="numeric"
-                      value={row.quantity}
-                      onChange={(event) => patchRow(index, { quantity: event.target.value })}
-                      aria-label="Количество"
-                    />
+                    {readOnly ? (
+                      <span className="num">{row.quantity}</span>
+                    ) : (
+                      <input
+                        className="input num"
+                        inputMode="numeric"
+                        value={row.quantity}
+                        onChange={(event) => patchRow(index, { quantity: event.target.value })}
+                        aria-label="Количество"
+                      />
+                    )}
                   </td>
                   <td>
-                    <CategoryCell
-                      value={row.category}
-                      options={categories.data ?? []}
-                      onChange={(category) => patchRow(index, { category })}
-                    />
+                    {readOnly ? (
+                      row.category || "— без категории —"
+                    ) : (
+                      <CategoryCell
+                        value={row.category}
+                        options={categories.data ?? []}
+                        onChange={(category) => patchRow(index, { category })}
+                      />
+                    )}
                   </td>
                   <td>
-                    <input
-                      className="input"
-                      value={row.notes}
-                      onChange={(event) => patchRow(index, { notes: event.target.value })}
-                      aria-label="Заметки"
-                    />
+                    {readOnly ? (
+                      row.notes
+                    ) : (
+                      <input
+                        className="input"
+                        value={row.notes}
+                        onChange={(event) => patchRow(index, { notes: event.target.value })}
+                        aria-label="Заметки"
+                      />
+                    )}
                   </td>
                   <td className="cell-updated num">
                     {isNew(row) ? "новая" : formatDate(originals.get(row.id)?.updated_at ?? "")}
@@ -544,33 +572,35 @@ export default function ItemsTable() {
         </table>
       </div>
 
-      <div className="bulk-bar">
-        {someSelected ? (
-          <>
-            <span className="num">Выбрано: {selected.size}</span>
-            <button
-              type="button"
-              className="btn btn-danger btn-sm"
-              onClick={() => setConfirmDelete(true)}
-            >
-              🗑 Удалить выбранные
-            </button>
-          </>
-        ) : (
-          <span className="dim">
-            Отметьте строки чекбоксами для массового удаления; подсветка — изменённые строки.
-          </span>
-        )}
-        <span className="spacer" />
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={save}
-          disabled={busy || (dirtyCount === 0 && !rows.some(isNew))}
-        >
-          💾 Сохранить таблицу
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="bulk-bar">
+          {someSelected ? (
+            <>
+              <span className="num">Выбрано: {selected.size}</span>
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                onClick={() => setConfirmDelete(true)}
+              >
+                🗑 Удалить выбранные
+              </button>
+            </>
+          ) : (
+            <span className="dim">
+              Отметьте строки чекбоксами для массового удаления; подсветка — изменённые строки.
+            </span>
+          )}
+          <span className="spacer" />
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={save}
+            disabled={busy || (dirtyCount === 0 && !rows.some(isNew))}
+          >
+            💾 Сохранить таблицу
+          </button>
+        </div>
+      )}
 
       {confirmDelete && (
         <ConfirmDialog
