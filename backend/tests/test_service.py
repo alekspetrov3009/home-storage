@@ -240,9 +240,6 @@ def test_cached_repository_delegates_writes_and_all_reads(data_file):
             recorded.append(("load_trash",))
             return pd.DataFrame({"ID": pd.Series(dtype="object")})
 
-        def trash_add(self, kind, record, parent_id=""):
-            recorded.append(("trash_add", kind))
-
         def trash_restore(self, kind, entity_id):
             recorded.append(("trash_restore", kind, entity_id))
             return "Отвёртка"
@@ -251,8 +248,8 @@ def test_cached_repository_delegates_writes_and_all_reads(data_file):
             recorded.append(("trash_clear",))
             return 0
 
-        def trash_purge_expired(self, cutoff):
-            recorded.append(("trash_purge_expired", cutoff))
+        def trash_purge_expired(self, now, days):
+            recorded.append(("trash_purge_expired", now, days))
             return 0
 
         def backup_file(self):
@@ -275,17 +272,16 @@ def test_cached_repository_delegates_writes_and_all_reads(data_file):
     wrapper.delete_item("itm1")
     wrapper.delete_items(["itm2"])
     wrapper.replace_items(pd.DataFrame({"ID": ["a"]}))
-    wrapper.trash_add("вещь", {"ID": "x"})
     assert wrapper.trash_restore("вещь", "x") == "Отвёртка"
     wrapper.trash_clear()
-    wrapper.trash_purge_expired(datetime.now())
+    wrapper.trash_purge_expired(datetime.now(), 30)
     assert wrapper.backup_file() == "backup.xlsx"
 
     names = [r[0] for r in recorded][4:]
     assert names == [
         "add_location", "delete_location", "add_box", "delete_box",
         "add_item", "update_item", "delete_item", "delete_items",
-        "replace_items", "trash_add", "trash_restore", "trash_clear",
+        "replace_items", "trash_restore", "trash_clear",
         "trash_purge_expired", "backup_file",
     ]
 

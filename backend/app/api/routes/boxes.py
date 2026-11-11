@@ -22,18 +22,10 @@ from app.api.schemas import (
 from app.config import get_config
 from app.context import get_service
 from app.domain.errors import NotFoundError
-from app.helpers import box_label_map, location_label_map, to_qty
+from app.helpers import box_label_map, location_label_map, row_by_id, to_qty
 
 # Чтение доступно любой авторизованной роли; мутации — только администратору.
 router = APIRouter(prefix="/api", tags=["boxes"], dependencies=[Depends(require_auth)])
-
-
-def _row_by_id(df: Any, record_id: str) -> Any:
-    """Строка DataFrame с указанным ID или None."""
-    for _, row in df.iterrows():
-        if str(row["ID"]) == str(record_id):
-            return row
-    return None
 
 
 def _items_grouped(service) -> dict[str, list[Any]]:
@@ -47,7 +39,7 @@ def _items_grouped(service) -> dict[str, list[Any]]:
 def _box_detail(service, box_id: str) -> BoxDetail:
     """BoxDetail по ID ящика; NotFoundError, если ящика нет."""
     boxes = service.load_boxes()
-    row = _row_by_id(boxes, box_id)
+    row = row_by_id(boxes, box_id)
     if row is None:
         raise NotFoundError(f"Ящик с ID {box_id} не найден.")
     locations = service.load_locations()
@@ -144,7 +136,7 @@ def box_qr(box_id: str, request: Request) -> Response:
     """
     service = get_service()
     boxes = service.load_boxes()
-    if _row_by_id(boxes, box_id) is None:
+    if row_by_id(boxes, box_id) is None:
         raise NotFoundError(f"Ящик с ID {box_id} не найден.")
     base = get_config().base_url or str(request.base_url).rstrip("/")
     link = f"{base}/box?box={box_id}"

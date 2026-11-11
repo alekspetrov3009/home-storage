@@ -15,8 +15,9 @@ from app.domain.errors import AuthError, ForbiddenError
 from app.domain.users import User
 
 SESSION_COOKIE = "storage_session"
-# Cookie живёт 30 дней, но серверная сессия — до выхода пользователя
-# (logout) или удаления учётной записи.
+# Cookie живёт 30 дней; серверная сессия — до выхода пользователя (logout),
+# удаления учётной записи или того же срока: сессии старше 30 дней вычищаются
+# при добавлении новой (SESSION_RETENTION_DAYS в app.domain.users).
 SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 30
 
 

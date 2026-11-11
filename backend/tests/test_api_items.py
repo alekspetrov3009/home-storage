@@ -170,6 +170,31 @@ def test_patch_unknown_item_404(client, data_file):
     assert response.status_code == 404
 
 
+def test_patch_noop_box_transfer_does_not_stamp(client, data_file):
+    """Перенос в тот же ящик — no-op: файл не пишется, штамп «Обновлён»
+    не обновляется (иначе каждое открытие формы сдвигало бы дату)."""
+    seed(data_file)
+    response = client.patch("/api/items/itm1", json={"box_id": "box1"})
+    assert response.status_code == 200
+    assert response.json()["updated_at"] == "2026-01-01 10:00:00"
+
+
+def test_patch_box_and_fields_apply_as_one_update(client, data_file):
+    """box_id и поля записываются одним вызовом update_item: одно сохранение
+    файла, один штамп — PATCH не может примениться наполовину."""
+    seed(data_file)
+    response = client.patch(
+        "/api/items/itm1", json={"box_id": "box2", "quantity": 7, "notes": "новые"}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["box_id"] == "box2"
+    assert body["box_label"] == "Ящик Б"
+    assert body["quantity"] == 7
+    assert body["notes"] == "новые"
+    assert body["updated_at"] != "2026-01-01 10:00:00"
+
+
 # --------------------------------------------------------------------------- #
 # Перенос отдельным эндпоинтом
 # --------------------------------------------------------------------------- #
@@ -276,6 +301,34 @@ def test_put_items_unknown_box_400(client, data_file):
     assert "Ящик с ID nope не найден" in response.json()["detail"]
 
 
+def test_put_items_duplicate_non_empty_id_400(client, data_file):
+    """Дубль непустого ID не записывается «как есть»: вторая строка стала бы
+    невидимой (row_index находит только первую), но жила бы в файле."""
+    seed(data_file)
+    response = client.put(
+        "/api/items",
+        json={"items": [
+            {"id": "itm1", "name": "Отвёртка", "quantity": 3},
+            {"id": "itm1", "name": "Отвёртка-двойник", "quantity": 1},
+        ]},
+    )
+    assert response.status_code == 400
+    assert "дубликат" in response.json()["detail"].lower()
+    # Файл не перезаписан: обе исходные вещи на месте.
+    assert [i["id"] for i in client.get("/api/items").json()] == ["itm1", "itm2", "itm3"]
+
+
+def test_put_items_empty_ids_are_not_duplicates(client, data_file):
+    # Несколько новых строк (пустой ID) — норм: каждая получает свой ID.
+    seed(data_file)
+    response = client.put(
+        "/api/items", json={"items": [{"name": "Пила"}, {"name": "Молоток"}]}
+    )
+    assert response.status_code == 200
+    assert response.json() == {"saved": 2}
+    assert len(client.get("/api/items").json()) == 2
+
+
 # --------------------------------------------------------------------------- #
 # Поиск и категории
 # --------------------------------------------------------------------------- #
@@ -292,8 +345,22 @@ def test_search_matches_name_category_notes_and_box_label(client, data_file):
     # Поиск по подписи ящика (box2 — «Ящик Б», без места).
     by_box = client.get("/api/search", params={"q": "ящик б"})
     assert [i["id"] for i in by_box.json()] == ["itm2"]
-    # Пустой запрос — все вещи.
-    assert len(client.get("/api/search").json()) == 3
+    # Регистр запроса не важен (сервер приводит запрос к нижнему регистру сам).
+    upper = client.get("/api/search", params={"q": "ОТВЁРТКА"})
+    assert [i["id"] for i in upper.json()] == ["itm1"]
+    # Пустой запрос ничего не находит (а не «все вещи»).
+    assert client.get("/api/search").json() == []
+    assert client.get("/api/search", params={"q": "   "}).json() == []
+
+
+def test_get_single_item(client, data_file):
+    seed(data_file)
+    response = client.get("/api/items/itm1")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == "itm1"
+    assert body["box_label"] == "Ящик А · Гараж"
+    assert client.get("/api/items/nope").status_code == 404
 
 
 def test_categories_sorted_and_unique(client, data_file):

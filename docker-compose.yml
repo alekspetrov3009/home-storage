@@ -5,9 +5,10 @@ services:
   api:
     build: ./backend
     restart: unless-stopped
+    # Один процесс uvicorn: блокировка файла данных действует только
+    # внутри процесса, --workers N не поддерживается (см. README).
     environment:
       DATA_FILE: /data/inventory.xlsx
-      APP_TITLE: ${APP_TITLE:-📦 Домашний склад}
       BASE_URL: ${BASE_URL:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
     volumes:

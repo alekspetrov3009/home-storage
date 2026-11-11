@@ -11,7 +11,8 @@ export default function Search() {
   const navigate = useNavigate();
   const [input, setInput] = useState(q);
 
-  const results = useApi(() => searchItems(q), [q]);
+  // Пустой запрос не ходит в API: сервер вернул бы все вещи впустую.
+  const results = useApi(() => (q ? searchItems(q) : Promise.resolve([])), [q]);
 
   useEffect(() => {
     setInput(q);

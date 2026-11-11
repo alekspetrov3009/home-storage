@@ -185,6 +185,7 @@ def client(monkeypatch, data_file: Path) -> TestClient:
     get_config.cache_clear()
     context._service = None
     context._auth_service = None
+    context._repository = None
     seed_admin(data_file)
     test_client = TestClient(app)
     test_client.cookies.set(SESSION_COOKIE, ADMIN_TOKEN)
@@ -192,4 +193,5 @@ def client(monkeypatch, data_file: Path) -> TestClient:
     # Чужие тесты не должны увидеть наши синглтоны и закэшированный конфиг.
     context._service = None
     context._auth_service = None
+    context._repository = None
     get_config.cache_clear()

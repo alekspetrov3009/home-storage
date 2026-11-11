@@ -101,7 +101,9 @@ def test_migration_merges_with_existing_locations(repo, data_file):
     assert sorted(locations["Название"].tolist()) == ["Гараж", "Кладовка"]
 
 
-def test_unknown_box_format_is_left_untouched(repo, data_file):
+def test_unknown_box_format_with_data_raises_instead_of_silent_misread(repo, data_file):
+    """Лист с данными и незнакомой шапкой — ошибка, а не тихое чтение по позициям:
+    смещённые колонки интерпретировались бы как чужие данные. Файл не трогается."""
     from openpyxl import Workbook
 
     wb = Workbook()
@@ -112,7 +114,8 @@ def test_unknown_box_format_is_left_untouched(repo, data_file):
     wb.create_sheet("Вещи").append(ITEM_FIELDS)
     wb.save(data_file)
 
-    repo.load_boxes()
+    with pytest.raises(StorageError, match="не совпадает шапка"):
+        repo.load_boxes()
 
     rows = read_sheet(data_file, "Ящики")
     assert rows[0][:3] == ["ID", "Название", "Что-то другое"]  # формат не тронут
@@ -286,6 +289,102 @@ def test_backup_file_creates_copy(repo):
     backup = repo.backup_file()
     assert backup.endswith(".backup.xlsx")
     assert read_sheet(backup, "Ящики")[0] == BOX_FIELDS
+
+
+def test_backup_retention_keeps_last_10(repo, data_file):
+    """Остаются последние 10 копий: без чистки диск рано или поздно заполняется."""
+    from pathlib import Path
+
+    repo.add_box("Ящик", "", "")
+    directory = data_file.parent
+    stem = data_file.stem
+    for i in range(1, 13):
+        Path(f"{directory}/{stem}.20240101-0000{i:02d}.backup.xlsx").write_bytes(b"fake")
+
+    repo.backup_file()
+
+    backups = sorted(Path(directory).glob(f"{stem}.*.backup.xlsx"))
+    assert len(backups) == 10
+    # Три старейших удалены (12 фейков + новая = 13, остаются последние 10).
+    assert backups[0].name == f"{stem}.20240101-000004.backup.xlsx"
+    assert backups[-1].name != f"{stem}.20240101-000012.backup.xlsx"
+
+
+def test_add_session_purges_stale_sessions(repo, data_file):
+    """Сессии старше SESSION_RETENTION_DAYS вычищаются при добавлении новой:
+    их cookie уже истекла, а строка без чистки жила бы в файле вечно.
+    Записи с неразбираемой отметкой не трогаются."""
+    from datetime import datetime, timedelta
+
+    from app.domain.users import SESSION_RETENTION_DAYS
+
+    fmt = "%Y-%m-%d %H:%M:%S"
+    stale = (datetime.now() - timedelta(days=SESSION_RETENTION_DAYS + 1)).strftime(fmt)
+    fresh = (datetime.now() - timedelta(days=1)).strftime(fmt)
+    repo.add_session("old-token", "user-1")
+    repo.add_session("fresh-token", "user-2")
+
+    from openpyxl import load_workbook
+
+    wb = load_workbook(repo._data_file)
+    ws = wb["Сессии"]
+    ws.cell(row=2, column=3, value=stale)
+    ws.cell(row=3, column=3, value=fresh)
+    ws.cell(row=4, column=1, value="broken-token")
+    ws.cell(row=4, column=2, value="user-3")
+    ws.cell(row=4, column=3, value="мусор")
+    wb.save(repo._data_file)
+
+    repo.add_session("new-token", "user-4")
+
+    rows = read_sheet(data_file, "Сессии")
+    tokens = [row[0] for row in rows[1:]]
+    assert tokens == ["fresh-token", "broken-token", "new-token"]
+
+
+def test_concurrent_item_and_session_writes_both_persist(data_file):
+    """Общий репозиторий: конкурентные записи инвентаря и сессий не теряются.
+
+    FastAPI выполняет sync-эндпоинты в threadpool, поэтому запись вещи и
+    запись сессии при логине реально идут из разных потоков. Один общий
+    RLock (единственный ExcelRepository в context.py) делает их
+    взаимоисключающими: обе записи обязаны оказаться в файле.
+    """
+    import threading
+
+    from app.storage.schema import SHEET_SESSIONS
+
+    repo = ExcelRepository(str(data_file))
+    repo.load_boxes()  # файл создан
+    loc_id = repo.add_location("Гараж", "")
+    box_id = repo.add_box("Ящик", loc_id, "")
+
+    rounds = 8
+    errors: list[Exception] = []
+
+    def add_items() -> None:
+        try:
+            for _ in range(rounds):
+                repo.add_item("Отвёртка", box_id, 1, "", "")
+        except Exception as exc:  # noqa: BLE001 — в assert уходит первая ошибка
+            errors.append(exc)
+
+    def add_sessions() -> None:
+        try:
+            for n in range(rounds):
+                repo.add_session(f"token-{n}", f"user-{n}")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=add_items), threading.Thread(target=add_sessions)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert len(repo.load_items()) == rounds
+    assert len(read_sheet(data_file, SHEET_SESSIONS)) - 1 == rounds
 
 
 def test_corrupted_file_raises_storage_error(repo, data_file):

@@ -21,25 +21,17 @@ from app.api.schemas import (
 from app.context import get_service
 from app.domain.categories import normalize_category
 from app.domain.errors import NotFoundError
-from app.helpers import box_label_map
+from app.helpers import box_label_map, row_by_id
 from app.services.inventory_service import InventoryService
 
 # Чтение доступно любой авторизованной роли; мутации — только администратору.
 router = APIRouter(prefix="/api", tags=["items"], dependencies=[Depends(require_auth)])
 
 
-def _row_by_id(df: Any, record_id: str) -> Any:
-    """Строка DataFrame с указанным ID или None."""
-    for _, row in df.iterrows():
-        if str(row["ID"]) == str(record_id):
-            return row
-    return None
-
-
 def _read_item(service, item_id: str) -> ItemOut:
     """Вещь из файла после сброса кэша; NotFoundError, если её нет."""
     items = service.load_items()
-    row = _row_by_id(items, item_id)
+    row = row_by_id(items, item_id)
     if row is None:
         raise NotFoundError(f"Вещь с ID {item_id} не найдена (возможно, удалена).")
     labels = box_label_map(service.load_boxes(), service.load_locations())
@@ -62,6 +54,12 @@ def list_items(box_id: str = "", category: str = "") -> list[ItemOut]:
     return result
 
 
+@router.get("/items/{item_id}", response_model=ItemOut)
+def get_item(item_id: str) -> ItemOut:
+    """Одна вещь по ID; несуществующая — 404."""
+    return _read_item(get_service(), item_id)
+
+
 @router.post("/items", response_model=ItemOut, status_code=201, dependencies=[Depends(require_admin)])
 def create_item(payload: ItemCreate) -> ItemOut:
     """Добавляет вещь; категория нормализуется к каноническому написанию."""
@@ -78,19 +76,15 @@ def create_item(payload: ItemCreate) -> ItemOut:
 def update_item(item_id: str, payload: ItemUpdate) -> ItemOut:
     """Частичное обновление вещи.
 
-    ``box_id`` обрабатывается как перенос (с проверкой существования ящика);
-    пустая строка или null — «без ящика», как выбор «— без ящика —» в формах.
-    Остальные поля уходят в точечное обновление, «Обновлён» ставит сервис.
+    Все переданные поля (включая ``box_id``) собираются в один ``fields`` и
+    записываются одним сохранением файла с одной отметкой «Обновлён» — PATCH
+    атомарен, как и любой другой вызов ``update_item``. ``box_id`` обрабатывается
+    как перенос: существование целевого ящика проверяется заранее (логика
+    ``move_item``), пустая строка или null — «без ящика», no-op перенос в тот
+    же ящик не трогает файл и не ставит штамп.
     """
     service = get_service()
     provided = payload.model_fields_set
-
-    if "box_id" in provided:
-        target = (payload.box_id or "").strip()
-        if target:
-            service.move_item(item_id, target)
-        else:
-            service.update_item(item_id, {"Ящик_ID": ""})
 
     fields: dict[str, Any] = {}
     if payload.name is not None:
@@ -103,6 +97,22 @@ def update_item(item_id: str, payload: ItemUpdate) -> ItemOut:
         fields["Категория"] = normalize_category(
             payload.category, service.get_categories()
         )
+
+    if "box_id" in provided:
+        target = (payload.box_id or "").strip()
+        if target:
+            boxes = service.load_boxes()
+            if target not in boxes["ID"].astype(str).values:
+                raise NotFoundError(f"Ящик с ID {target} не найден.")
+            # No-op перенос в тот же ящик не пишет файл и не обновляет штамп.
+            current = row_by_id(service.load_items(), item_id)
+            if current is None:
+                raise NotFoundError(f"Вещь с ID {item_id} не найдена (возможно, удалена).")
+            if str(current["Ящик_ID"]) != target:
+                fields["Ящик_ID"] = target
+        else:
+            fields["Ящик_ID"] = ""
+
     if fields:
         service.update_item(item_id, fields)
 

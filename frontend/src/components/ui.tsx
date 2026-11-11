@@ -9,7 +9,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { restoreFromTrash, type TrashEntry } from "../api";
+import { errorMessage, restoreFromTrash, type TrashEntry } from "../api";
 
 /* ========================= Версия данных ================================= */
 
@@ -107,16 +107,26 @@ function UndoProvider({ children }: { children: ReactNode }) {
     const { entries } = state;
     setState(null);
     let restored = 0;
-    let skipped = 0;
+    const errors: string[] = [];
     for (const entry of entries) {
       try {
         await restoreFromTrash(entry.kind, entry.id);
         restored += 1;
-      } catch {
-        skipped += 1;
+      } catch (err) {
+        // «Пропущено: N» без причин бесполезно — показываем первые тексты.
+        errors.push(errorMessage(err));
       }
     }
-    toast(`Восстановлено: ${restored}, пропущено: ${skipped}`);
+    if (errors.length > 0) {
+      const shown = errors.slice(0, 2).join("; ");
+      const more = errors.length > 2 ? ` (и ещё ${errors.length - 2})` : "";
+      toast(
+        `Восстановлено: ${restored}, пропущено: ${errors.length}: ${shown}${more}`,
+        "error",
+      );
+    } else {
+      toast(`Восстановлено: ${restored}`);
+    }
     bump();
   }, [state, toast, bump]);
 

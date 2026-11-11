@@ -20,7 +20,9 @@
 
     Лист "Сессии" (появляется при первом входе):
                    Токен | ID_Пользователя | Создан
-    Живут до выхода пользователя (logout) или удаления учётной записи.
+    Живут до выхода пользователя (logout) или удаления учётной записи;
+    сессии старше 30 дней (SESSION_RETENTION_DAYS) вычищаются при
+    добавлении новой сессии.
 """
 
 from __future__ import annotations
@@ -32,6 +34,7 @@ from openpyxl.workbook.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 from app.domain import fields
+from app.domain.errors import StorageError
 
 SHEET_LOCATIONS = "Места"
 SHEET_BOXES = "Ящики"
@@ -70,6 +73,11 @@ def ensure_worksheet(
 
     Возвращает (лист, нужно_ли_сохранить). Вызывающий код обязан сохранить книгу,
     если флаг взведён, иначе исправленная шапка останется только в памяти.
+
+    Шапка непустого листа обязана совпадать: чтение идёт по позициям колонок,
+    и молча прочитанный лист с переименованной/удалённой вручную колонкой
+    интерпретировал бы чужие данные как свои. Пустой лист (только шапка)
+    приводится к ожидаемой шапке молча.
     """
     if title not in wb.sheetnames:
         ws = wb.create_sheet(title)
@@ -80,7 +88,13 @@ def ensure_worksheet(
     first_row = [c.value for c in ws[1]] if ws.max_row >= 1 else []
     first_row = ["" if v is None else str(v) for v in first_row]
 
-    if first_row[: len(headers)] != headers and ws.max_row <= 1:
+    if first_row[: len(headers)] != headers:
+        if ws.max_row > 1:
+            raise StorageError(
+                f"Лист «{title}» повреждён: не совпадает шапка. Приведите первую "
+                f"строку листа к виду «{' | '.join(headers)}» или удалите лист — "
+                "приложение пересоздаст его."
+            )
         # Лист пуст (только шапка или вообще ничего) — приводим шапку к ожидаемой.
         for idx, header in enumerate(headers, start=1):
             ws.cell(row=1, column=idx, value=header)

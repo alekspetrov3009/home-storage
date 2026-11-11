@@ -16,14 +16,37 @@ import Login from "./pages/Login";
 
 /* Страницы и данные склада закрыты на сервере; эти обёртки лишь вовремя
    перенаправляют неавторизованных на форму входа и уводят роль «просмотр»
-   с админских маршрутов. Возвращённый после входа адрес — state.from. */
+   с админских маршрутов. Возвращённый после входа адрес — state.from.
+   Сбой связи с API (authError) — не «не залогинен»: вместо редиректа
+   показывается экран сбоя с повтором, иначе пользователь молча вылетал
+   на форму входа при каждой недоступности backend. */
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, authError, retry } = useAuth();
   const location = useLocation();
   if (loading) {
     return <div className="auth-loading" aria-label="Загрузка" />;
   }
   if (!user) {
+    if (authError) {
+      return (
+        <div className="auth-page">
+          <div className="auth-card">
+            <div className="auth-brand" aria-hidden="true">
+              ⚠️
+            </div>
+            <h1>Нет связи с API</h1>
+            <p className="inline-error">{authError}</p>
+            <button
+              type="button"
+              className="btn btn-primary auth-submit"
+              onClick={retry}
+            >
+              Повторить
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <Navigate
         to="/login"

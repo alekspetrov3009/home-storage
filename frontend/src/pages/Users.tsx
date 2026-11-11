@@ -53,8 +53,10 @@ export default function Users() {
       toast(`Учётная запись «${deleting.login}» удалена`);
       setDeleting(null);
     } catch (err) {
+      // Диалог не закрывается (как форма создания/правки): контекст — какой
+      // пользователь и почему нельзя («последний администратор») — сохранён,
+      // текст ошибки остаётся рядом с кнопками.
       toast(err instanceof Error ? err.message : String(err), "error");
-      setDeleting(null);
     } finally {
       setBusyDelete(false);
     }

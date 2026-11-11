@@ -8,11 +8,11 @@
 
 from __future__ import annotations
 
-import json
+import glob
 import os
 import shutil
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Mapping
 
 import pandas as pd
@@ -31,8 +31,10 @@ from app.domain.trash import (
     DeletedEntry,
     decode_data,
     encode_data,
+    is_expired,
     parse_ts,
 )
+from app.domain.users import SESSION_RETENTION_DAYS
 from app.storage import schema
 from app.storage.migration import migrate_box_color_column, migrate_legacy_boxes
 from app.storage.schema import (
@@ -60,6 +62,9 @@ _TRASH_TARGETS = {
     TRASH_KIND_BOX: (SHEET_BOXES, BOX_HEADERS),
     TRASH_KIND_LOCATION: (SHEET_LOCATIONS, LOCATION_HEADERS),
 }
+
+# Сколько последних резервных копий хранится рядом с файлом данных.
+_BACKUP_KEEP = 10
 
 
 class ExcelRepository:
@@ -133,6 +138,10 @@ class ExcelRepository:
             return wb
         except FileNotFoundError as exc:
             raise StorageError(f"Файл данных не найден: {self._data_file}") from exc
+        except StorageError:
+            # Ошибки контракта от миграций (например, не совпадает шапка листа
+            # с данными) отдаются как есть, без обёртки «не удалось открыть».
+            raise
         except (InvalidFileException, OSError, KeyError) as exc:
             # BadZipFile тоже попадает сюда через OSError-совместимые исключения openpyxl
             raise StorageError(
@@ -189,13 +198,6 @@ class ExcelRepository:
             if dirty:
                 self._save_workbook(wb)
             return rows_to_frame(ws, TRASH_HEADERS)
-
-    def trash_add(self, kind: str, record: Mapping[str, Any], parent_id: str = "") -> None:
-        """Добавляет произвольную запись в корзину (без изменения основных листов)."""
-        with self._lock:
-            wb = self._load_workbook()
-            self._append_trash(wb, kind, record, parent_id)
-            self._save_workbook(wb)
 
     def trash_restore(self, kind: str, entity_id: str) -> str:
         """Возвращает запись из корзины на её исходный лист.
@@ -269,11 +271,13 @@ class ExcelRepository:
                 self._save_workbook(wb)
             return count
 
-    def trash_purge_expired(self, cutoff: datetime) -> int:
-        """Удаляет из корзины записи, удалённые раньше cutoff. Возвращает их число.
+    def trash_purge_expired(self, now: datetime, days: int) -> int:
+        """Удаляет из корзины записи, удалённые раньше ``now - days`` дней.
 
-        Записи с неразбираемой отметкой времени не трогает: их виднее оставить
-        для ручного восстановления, чем молча терять.
+        Правило истечения одно — ``app.domain.trash.is_expired`` (дубликат
+        сравнения здесь расползается с доменом). Записи с неразбираемой
+        отметкой времени не трогает: их виднее оставить для ручного
+        восстановления, чем молча терять.
         """
         with self._lock:
             wb = self._load_workbook()
@@ -286,9 +290,7 @@ class ExcelRepository:
                 for row_idx, row in enumerate(
                     trash_ws.iter_rows(min_row=2, values_only=True), start=2
                 )
-                if row
-                and (deleted_at := parse_ts(row[5] if len(row) > 5 else None)) is not None
-                and deleted_at < cutoff
+                if row and is_expired(row[5] if len(row) > 5 else None, now, days)
             ]
             # Удаляем снизу вверх: удаление строки сдвигает индексы последующих.
             for row_idx in sorted(expired_rows, reverse=True):
@@ -841,10 +843,29 @@ class ExcelRepository:
             self._save_workbook(wb)
 
     def add_session(self, token: str, user_id: str) -> None:
-        """Создаёт сессию (токен-cookie → пользователь) на листе «Сессии»."""
+        """Создаёт сессию (токен-cookie → пользователь) на листе «Сессии».
+
+        Попутно вычищает сессии старше SESSION_RETENTION_DAYS: их cookie
+        уже истекла (сроки совпадают), а строка без чистки жила бы вечно —
+        лист «Сессии» рос бы без ограничений. Записи с неразбираемой
+        отметкой «Создан» не трогает (как корзина: не терять молча).
+        """
         with self._lock:
             wb = self._load_workbook()
             ws, _ = ensure_worksheet(wb, SHEET_SESSIONS, SESSION_HEADERS)
+            created_column = SESSION_HEADERS.index("Создан") + 1
+            cutoff = datetime.now() - timedelta(days=SESSION_RETENTION_DAYS)
+            stale_rows = [
+                row_idx
+                for row_idx, row in enumerate(
+                    ws.iter_rows(min_row=2, values_only=True), start=2
+                )
+                if row
+                and (created := parse_ts(row[created_column - 1])) is not None
+                and created < cutoff
+            ]
+            for row_idx in sorted(stale_rows, reverse=True):
+                ws.delete_rows(row_idx)
             ws.append([token, str(user_id), now_str()])
             self._save_workbook(wb)
 
@@ -896,7 +917,8 @@ class ExcelRepository:
 
         Копия сохраняется с расширением .xlsx, а не .bak: openpyxl и Excel
         отказываются открывать книгу с «неизвестным» расширением, и копию
-        нельзя было бы восстановить.
+        нельзя было бы восстановить. После успеха остаются последние
+        _BACKUP_KEEP копий — иначе диск рано или поздно заполняется.
         """
         with self._lock:
             self._ensure_file()
@@ -908,4 +930,20 @@ class ExcelRepository:
                 shutil.copy2(self._data_file, target)
             except OSError as exc:
                 raise StorageError(f"Не удалось создать резервную копию: {exc}") from exc
+            self._prune_backups(directory, stem)
             return target
+
+    @staticmethod
+    def _prune_backups(directory: str, stem: str) -> None:
+        """Оставляет последние _BACKUP_KEEP резервных копий, удаляя старые.
+
+        Отметка времени в имени сортируется лексикографически = хронологически.
+        Сбой удаления старой копии не отменяет уже созданную копию.
+        """
+        pattern = os.path.join(glob.escape(directory), f"{glob.escape(stem)}.*.backup.xlsx")
+        backups = sorted(glob.glob(pattern))
+        for stale in backups[:-_BACKUP_KEEP]:
+            try:
+                os.remove(stale)
+            except OSError:
+                pass

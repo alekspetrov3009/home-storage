@@ -10,9 +10,9 @@ from app.domain.models import Box, Item, Location
 
 
 class TestIds:
-    def test_new_id_is_8_hex_chars(self):
+    def test_new_id_is_12_hex_chars(self):
         value = new_id()
-        assert len(value) == 8
+        assert len(value) == 12
         int(value, 16)  # hex
 
     def test_ids_are_unique(self):

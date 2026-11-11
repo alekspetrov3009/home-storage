@@ -163,26 +163,17 @@ export const fetchItems = (filters?: { box_id?: string; category?: string }) => 
   return request<Item[]>(`/api/items${qs ? `?${qs}` : ""}`);
 };
 
-export const fetchItem = (id: string) => {
-  // Отдельной схемы вещи нет — фильтр по точному ID не предусмотрен;
-  // детальная страница берёт вещь из общего списка.
-  return fetchItems().then((items) => {
-    const found = items.find((item) => item.id === id);
-    if (!found) {
-      throw new ApiError(404, `Вещь с ID ${id} не найдена (возможно, удалена).`);
-    }
-    return found;
-  });
-};
+export const fetchItem = (id: string) =>
+  request<Item>(`/api/items/${encodeURIComponent(id)}`);
 
 export const fetchCategories = () => request<string[]>("/api/categories");
 
 export const fetchTrash = () => request<TrashResponse>("/api/trash");
 
 export const searchItems = (q: string) =>
-  // Контракт сервера: стог сена в нижнем регистре, запрос сравнивается как есть —
-  // поэтому запрос приводит к нижнему регистру фронтенд.
-  request<Item[]>(`/api/search?q=${encodeURIComponent(q.trim().toLowerCase())}`);
+  // Сервер сам приводит и запрос, и стог сена к нижнему регистру;
+  // здесь остаётся только обрезка пробелов.
+  request<Item[]>(`/api/search?q=${encodeURIComponent(q.trim())}`);
 
 /* ----------------------------- Мутации ----------------------------------- */
 

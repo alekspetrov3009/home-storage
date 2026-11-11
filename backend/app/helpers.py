@@ -15,7 +15,14 @@ from app.domain.categories import normalize_category
 
 # Подписи отсутствующих родителей.
 NO_BOX_LABEL = "— без ящика —"
-NO_LOCATION_LABEL = "— без места хранения —"
+
+
+def row_by_id(df: pd.DataFrame, record_id: Any) -> pd.Series | None:
+    """Строка DataFrame с указанным ID или None (роуты items/boxes)."""
+    for _, row in df.iterrows():
+        if str(row["ID"]) == str(record_id):
+            return row
+    return None
 
 
 def location_label_map(locations: pd.DataFrame) -> dict[str, str]:

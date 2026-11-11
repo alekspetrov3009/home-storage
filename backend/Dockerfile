@@ -15,4 +15,6 @@ COPY app ./app
 EXPOSE 8000
 
 # DATA_FILE по умолчанию /data/inventory.xlsx — том подкладывается в /data.
+# Ровно один процесс uvicorn: блокировка файла данных действует только
+# внутри процесса, добавлять --workers N нельзя (см. README).
 CMD ["python", "-m", "uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -12,7 +12,7 @@ import threading
 import time
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Mapping
+from typing import Any
 
 import pandas as pd
 
@@ -39,10 +39,13 @@ class CachedRepository:
             if entry is not None:
                 result, stored_at = entry
                 if time.monotonic() - stored_at < _TTL_SECONDS:
-                    return result
+                    # Копия обязательна: один и тот же DataFrame получают все
+                    # вызовы до истечения TTL, и inplace-правка одним вызовом
+                    # отравила бы кэш для остальных.
+                    return result.copy()
             result = read()
             self._cache[name] = (result, time.monotonic())
-            return result
+            return result.copy()
 
     # --- Чтение (кэшируется) ------------------------------------------- #
 
@@ -105,17 +108,14 @@ class CachedRepository:
     def delete_category(self, name: str) -> int:
         return self._repo.delete_category(name)
 
-    def trash_add(self, kind: str, record: Mapping[str, Any], parent_id: str = "") -> None:
-        self._repo.trash_add(kind, record, parent_id)
-
     def trash_restore(self, kind: str, entity_id: str) -> str:
         return self._repo.trash_restore(kind, entity_id)
 
     def trash_clear(self) -> int:
         return self._repo.trash_clear()
 
-    def trash_purge_expired(self, cutoff: datetime) -> int:
-        return self._repo.trash_purge_expired(cutoff)
+    def trash_purge_expired(self, now: datetime, days: int) -> int:
+        return self._repo.trash_purge_expired(now, days)
 
     # --- Пользователи и сессии (мимо кэша: проверка доступа на каждом
     # --- запросе должна видеть актуальное состояние блокировок) --------- #

@@ -9,14 +9,13 @@ UI работает только с этим слоем и никогда не �
 from __future__ import annotations
 
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from app.domain.categories import (
     combined_categories,
     find_category,
     normalize_category,
-    unique_categories,
     validate_category_name,
 )
 from app.domain.colors import pick_box_color
@@ -245,8 +244,9 @@ class InventoryService:
         к каноническому написанию, пустой ID получает новый. Отметка «Обновлён»
         ставится только новым и фактически изменённым строкам
         (``item_row_changed``), иначе каждое сохранение «обновляло» бы всю
-        таблицу. Валидация: пустое название и несуществующий ящик —
-        ValidationError. Возвращает число записанных строк.
+        таблицу. Валидация: пустое название, несуществующий ящик и повтор
+        непустого ID (дубль стал бы «невидимым» — ``row_index`` находит только
+        первую строку) — ValidationError. Возвращает число записанных строк.
         """
         items = self.load_items()
         categories = self.get_categories()
@@ -255,8 +255,15 @@ class InventoryService:
         originals = {str(row["ID"]): row for _, row in items.iterrows()}
 
         prepared: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
         for raw in rows:
             item_id = clean_id(raw.get("id", ""))
+            if item_id:
+                if item_id in seen_ids:
+                    raise ValidationError(
+                        f"В таблице две строки с одним ID ({item_id}) — уберите дубликат."
+                    )
+                seen_ids.add(item_id)
             name = clean_text(raw.get("name", ""))
             if not name:
                 raise ValidationError("Укажите название вещи.")
@@ -294,7 +301,15 @@ class InventoryService:
     def search_item_ids(
         items: pd.DataFrame, box_labels: dict[str, str], query: str
     ) -> list[str]:
-        """ID вещей, подходящих под запрос (название, категория, заметки, ящик)."""
+        """ID вещей, подходящих под запрос (название, категория, заметки, ящик).
+
+        Стог сена и запрос приводятся к нижнему регистру (контракт не зависит
+        от фронтенда); пустой запрос ничего не находит — иначе поиск молча
+        возвращал бы все вещи.
+        """
+        needle = str(query or "").strip().lower()
+        if not needle:
+            return []
         haystack = (
             items["Название"].astype(str).str.lower()
             + " " + items["Категория"].astype(str).str.lower()
@@ -303,7 +318,7 @@ class InventoryService:
             # типа float64, и вызов .str падает с AttributeError.
             + items["Ящик_ID"].map(box_labels).fillna("").astype(str).str.lower()
         )
-        matched = items[haystack.str.contains(query, regex=False)]
+        matched = items[haystack.str.contains(needle, regex=False)]
         return matched["ID"].astype(str).tolist()
 
     # ------------------------------------------------------------------ #
@@ -337,8 +352,7 @@ class InventoryService:
         """Вычищает записи старше 30 дней (TRASH_RETENTION_DAYS)."""
         if now is None:
             now = datetime.now()
-        cutoff = now - timedelta(days=TRASH_RETENTION_DAYS)
-        return self._repo.trash_purge_expired(cutoff)
+        return self._repo.trash_purge_expired(now, TRASH_RETENTION_DAYS)
 
     # ------------------------------------------------------------------ #
     # Обслуживание

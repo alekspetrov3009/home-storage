@@ -14,6 +14,9 @@ import secrets
 
 # OWASP рекомендует не меньше 600 000 итераций PBKDF2-HMAC-SHA256.
 PBKDF2_ITERATIONS = 600_000
+# Верхняя граница итераций из файла: испорченная/подменённая строка хеша
+# не должна заставлять каждый login считать PBKDF2 минуты (DoS).
+_MAX_ITERATIONS = 2_000_000
 _ALGORITHM = "pbkdf2_sha256"
 _SALT_BYTES = 16
 
@@ -37,8 +40,11 @@ def verify_password(password: str, stored: str) -> bool:
         algorithm, iterations, salt, expected_hex = stored.strip().split("$", 3)
         if algorithm != _ALGORITHM:
             return False
+        count = int(iterations)
+        if not 1 <= count <= _MAX_ITERATIONS:
+            return False
         digest = hashlib.pbkdf2_hmac(
-            "sha256", password.encode("utf-8"), bytes.fromhex(salt), int(iterations)
+            "sha256", password.encode("utf-8"), bytes.fromhex(salt), count
         )
     except (ValueError, TypeError):
         return False
