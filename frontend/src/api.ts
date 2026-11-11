@@ -9,6 +9,11 @@ export interface Stats {
   locations: number;
 }
 
+export interface Health {
+  status: string;
+  registration_open: boolean;
+}
+
 export type UserRole = "admin" | "viewer";
 
 export interface User {
@@ -145,6 +150,8 @@ function jsonInit(method: string, body: unknown): RequestInit {
 }
 
 /* ------------------------------ Чтение ----------------------------------- */
+
+export const fetchHealth = () => request<Health>("/api/health");
 
 export const fetchStats = () => request<Stats>("/api/stats");
 

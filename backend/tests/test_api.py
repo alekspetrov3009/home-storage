@@ -14,7 +14,8 @@ from conftest import make_new_workbook
 def test_health_returns_ok(client):
     response = client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    # registration_open — подсказка фронтенду о REGISTRATION_MODE (по умолчанию open).
+    assert response.json() == {"status": "ok", "registration_open": True}
 
 
 def test_stats_returns_counts_from_fixture(client, data_file):

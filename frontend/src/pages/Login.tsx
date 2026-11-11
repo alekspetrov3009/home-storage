@@ -2,11 +2,16 @@
 
    Успешный вход/регистрация возвращают на исходную страницу (state.from).
    Регистрация сразу выполняет вход; новая учётная запись получает роль
-   «просмотр», а самая первая на пустом складе — «администратор». */
+   «просмотр», а самая первая на пустом складе — «администратор».
+   Переключатель «Регистрация» показывается только когда сервер разрешает
+   самостоятельную регистрацию (REGISTRATION_MODE, поле registration_open
+   публичного GET /api/health); при закрытой регистрации учётные записи
+   создаёт администратор. Пока health не загружен, показываем только вход —
+   безопасная сторона. */
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { errorMessage } from "../api";
+import { errorMessage, fetchHealth } from "../api";
 import { useAuth } from "../auth";
 
 type Mode = "login" | "register";
@@ -20,11 +25,27 @@ export default function Login() {
     (location.state as { from?: string } | null)?.from ?? "/";
 
   const [mode, setMode] = useState<Mode>("login");
+  const [registrationOpen, setRegistrationOpen] = useState(false);
   const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchHealth().then(
+      (health) => {
+        if (!cancelled) setRegistrationOpen(health.registration_open);
+      },
+      () => {
+        /* health недоступен — регистрация не показывается, вход работает */
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!loading && user) {
     return <Navigate to={from} replace />;
@@ -75,32 +96,34 @@ export default function Login() {
             : "Регистрация новой учётной записи"}
         </p>
 
-        <div className="segmented auth-tabs" role="tablist" aria-label="Вход или регистрация">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "login"}
-            className={`segmented-btn${mode === "login" ? " active" : ""}`}
-            onClick={() => {
-              setMode("login");
-              setError(null);
-            }}
-          >
-            Вход
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "register"}
-            className={`segmented-btn${mode === "register" ? " active" : ""}`}
-            onClick={() => {
-              setMode("register");
-              setError(null);
-            }}
-          >
-            Регистрация
-          </button>
-        </div>
+        {registrationOpen && (
+          <div className="segmented auth-tabs" role="tablist" aria-label="Вход или регистрация">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "login"}
+              className={`segmented-btn${mode === "login" ? " active" : ""}`}
+              onClick={() => {
+                setMode("login");
+                setError(null);
+              }}
+            >
+              Вход
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "register"}
+              className={`segmented-btn${mode === "register" ? " active" : ""}`}
+              onClick={() => {
+                setMode("register");
+                setError(null);
+              }}
+            >
+              Регистрация
+            </button>
+          </div>
+        )}
 
         <form onSubmit={submit}>
           <label className="field">

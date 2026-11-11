@@ -1,23 +1,86 @@
-# Домашний склад: REST API (FastAPI) + интерфейс (nginx со статикой React).
-# Запуск: docker compose up -d --build   →   http://localhost:8080
+# Домашний склад: REST API (FastAPI) + интерфейс (nginx со статикой React)
+# + Caddy (автоматический HTTPS/Let's Encrypt — единственная точка входа).
+#
+# Локальная разработка:   docker compose up -d --build   → http://127.0.0.1:8080
+#                         (Caddy поднимется с самоподписанным сертификатом
+#                         для localhost — https://localhost тоже работает)
+# Публичный хост (VPS):   в .env задать DOMAIN, BASE_URL,
+#                         REGISTRATION_MODE=closed, SECURE_COOKIES=1, DOCS_ENABLED=0
+#                         docker compose up -d --build          → https://DOMAIN
+#
 # Файл данных живёт на хосте в ./data (том /data в контейнере backend).
 services:
   api:
     build: ./backend
     restart: unless-stopped
     # Один процесс uvicorn: блокировка файла данных действует только
-    # внутри процесса, --workers N не поддерживается (см. README).
+    # внутри процесса, --workers N и replicas не поддерживаются (см. README).
     environment:
       DATA_FILE: /data/inventory.xlsx
       BASE_URL: ${BASE_URL:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      REGISTRATION_MODE: ${REGISTRATION_MODE:-closed}
+      SECURE_COOKIES: ${SECURE_COOKIES:-0}
+      DOCS_ENABLED: ${DOCS_ENABLED:-1}
     volumes:
       - ./data:/data
+    healthcheck:
+      # curl в slim-образе нет — проверяем стандартной библиотекой Python.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   web:
     build: ./frontend
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    # Публичный трафик идёт через Caddy; web торчит только на localhost —
+    # для диагностики напрямую (минуя TLS) с самого сервера.
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - "127.0.0.1:${WEB_PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    # Единственная точка входа: 80 (ACME-челлендж и редирект) и 443 (HTTPS).
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -12,7 +12,9 @@ from fastapi import APIRouter, Depends, Request, Response
 
 from app.api.deps import SESSION_COOKIE, SESSION_COOKIE_MAX_AGE, get_current_user
 from app.api.schemas import ChangePasswordIn, LoginIn, RegisterIn, UserOut, user_out
+from app.config import get_config
 from app.context import get_auth_service
+from app.domain.errors import ForbiddenError
 from app.domain.users import User
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -20,14 +22,16 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 def _set_session_cookie(response: Response, token: str) -> None:
     """Ставит cookie сессии: HttpOnly, SameSite=Lax (кросс-порт 5173→8000 —
-    один сайт, cookie действует; при развёртывании по HTTPS стоит добавить
-    secure=True)."""
+    один сайт, cookie действует). Флаг ``secure`` включается переменной
+    SECURE_COOKIES=1 — обязательно при развёртывании по HTTPS, иначе
+    cookie не передаётся только по защищённому соединению."""
     response.set_cookie(
         key=SESSION_COOKIE,
         value=token,
         max_age=SESSION_COOKIE_MAX_AGE,
         httponly=True,
         samesite="lax",
+        secure=get_config().secure_cookies,
         path="/",
     )
 
@@ -38,7 +42,13 @@ def register(payload: RegisterIn, response: Response) -> UserOut:
 
     Если учётных записей ещё нет, первая получает роль «администратора»
     (bootstrap: иначе администратора некем создать). Сразу выполняется вход.
+    Закрыта (403), когда REGISTRATION_MODE=closed: учётные записи создаёт
+    администратор через интерфейс, первый — CLI ``python -m app.bootstrap_admin``.
     """
+    if not get_config().registration_open:
+        raise ForbiddenError(
+            "Регистрация закрыта. Учётные записи создаёт администратор."
+        )
     user = get_auth_service().register(payload.login, payload.password)
     _set_session_cookie(response, get_auth_service().create_session(user.id))
     return user_out(user)

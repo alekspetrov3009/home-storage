@@ -23,9 +23,10 @@ SLUG_KIND = {slug: kind for kind, slug in KIND_SLUG.items()}
 
 
 class HealthResponse(BaseModel):
-    """Ответ проверки живости API."""
+    """Ответ проверки живости API (публичный, без данных склада)."""
 
     status: str
+    registration_open: bool
 
 
 class StatsResponse(BaseModel):
